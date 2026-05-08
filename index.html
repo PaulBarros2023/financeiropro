@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- FinançasPRO v202605081100 — cache bust -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
@@ -8,29 +7,26 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="FinançasPRO"/>
 <meta name="theme-color" content="#F0F4F8"/>
-<meta name="version" content="v202605081100"/>
+<meta name="description" content="Controle total das suas finanças pessoais"/>
 <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22Fina%C3%A7asPRO%22%2C%22short_name%22%3A%22Fina%C3%A7as%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F0F4F8%22%2C%22theme_color%22%3A%22%23059669%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPD94bWwgdmVyc2lvbj0iMS4wIj8%2BSjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgMTkyIDE5MiI%2BPHJlY3Qgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxOTIiIHJ4PSI0OCIgZmlsbD0iIzA1OTY2OSIvPjx0ZXh0IHg9Ijk2IiB5PSIxMjgiIGZvbnQtc2l6ZT0iMTAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7wn5KwPC90ZXh0Pjwvc3ZnPg%3D%3D%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjQ4IiBmaWxsPSIjMDU5NjY5Ii8+PHRleHQgeD0iOTYiIHk9IjEyOCIgZm9udC1zaXplPSIxMDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPvCfkrA8L3RleHQ+PC9zdmc+"/>
 <title>FinançasPRO</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:'Inter',system-ui,sans-serif}
-html,body{height:100%;overscroll-behavior:none}
-input,select,button,textarea{font-family:'Inter',system-ui,sans-serif}
+html,body{height:100%;background:#F0F4F8;overscroll-behavior:none}
+input,select,button,textarea{font-family:'Inter',system-ui,sans-serif;color-scheme:light}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 *{-webkit-touch-callout:none}
 input,textarea,select{-webkit-touch-callout:default}
 </style>
 </head>
 <body>
-<div id="root"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;font-family:system-ui;color:#64748b;background:#F0F4F8"><div style="font-size:48px">💰</div><div style="font-size:16px;font-weight:600;color:#059669">FinançasPRO</div><div style="font-size:13px;color:#94a3b8">v202605081100</div></div></div>
+<div id="root"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;font-family:system-ui;color:#64748b"><div style="font-size:48px">💰</div><div style="font-size:16px;font-weight:600;color:#059669">FinançasPRO</div><div style="font-size:13px">Carregando...</div></div></div>
 <script>
-// Limpa service worker antigo para forçar atualização
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations().then(regs=>{regs.forEach(r=>r.unregister());});
-  caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));
-  const sw=`self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>{self.clients.claim();caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k))));});self.addEventListener('fetch',e=>{if(e.request.url.includes('fonts.googleapis.com')||e.request.url.includes('fonts.gstatic.com')){e.respondWith(caches.open('fp-v202605081100').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{c.put(e.request,res.clone());return res;}))));}});`;
-  setTimeout(()=>navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{}),1000);
+  const sw=`self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>self.clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('fonts.googleapis.com')||e.request.url.includes('fonts.gstatic.com')){e.respondWith(caches.open('fp-v1').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{c.put(e.request,res.clone());return res;}))));}});`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
 }
 </script>
 <script>

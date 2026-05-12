@@ -886,6 +886,9 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
     }
   )));
 }
+
+
+    
 function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
   const [expenses, setExpenses] = useState([]);
   const [cards, setCards] = useState([]);
@@ -1573,6 +1576,150 @@ function GoalsScreen({ user, onBack, refresh, onRefresh }) {
     return /* @__PURE__ */ React.createElement(SCard, { key: cat, style: { padding: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: goal ? 8 : 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18 } }, catIcon[cat] || "\u{1F4A1}"), /* @__PURE__ */ React.createElement("span", { style: { ...T.body, color: C.textPri, fontWeight: 600 } }, cat), overBudget && /* @__PURE__ */ React.createElement("span", { style: { ...T.micro, background: C.red + "22", color: C.red, padding: "2px 8px", borderRadius: 10 } }, "EXCEDEU"), nearBudget && /* @__PURE__ */ React.createElement("span", { style: { ...T.micro, background: C.yellow + "22", color: C.yellow, padding: "2px 8px", borderRadius: 10 } }, "ATEN\xC7\xC3O")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { ...T.mono, color: overBudget ? C.red : C.textSec } }, fmt(spent)), goal && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { ...T.small, color: C.textMut } }, "/ ", fmt(goal.monthlyLimit)), /* @__PURE__ */ React.createElement("button", { onClick: () => setEditing({ category: cat, value: String(goal.monthlyLimit) }), style: { background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13 } }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => deleteGoal(goal.id), style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 13 } }, "\u{1F5D1}")), !goal && /* @__PURE__ */ React.createElement("button", { onClick: () => setEditing({ category: cat, value: "" }), style: { ...T.small, background: C.blue + "18", border: `1px solid ${C.blue}44`, borderRadius: 8, padding: "4px 10px", color: C.blue, cursor: "pointer", fontWeight: 600 } }, "+ Meta"))), goal && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { background: C.border, borderRadius: 4, height: 6, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { background: overBudget ? C.red : nearBudget ? C.yellow : C.accent, width: `${pct}%`, height: "100%", borderRadius: 4, transition: "width .5s" } })), /* @__PURE__ */ React.createElement("div", { style: { ...T.small, color: C.textMut, marginTop: 4 } }, pct.toFixed(0), "% utilizado este m\xEAs")));
   })), editing && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 200, display: "flex", alignItems: "flex-end" }, onClick: () => setEditing(null) }, /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: C.surface, borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 430, margin: "0 auto", padding: "24px 20px", paddingBottom: "max(env(safe-area-inset-bottom),24px)", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" } }, /* @__PURE__ */ React.createElement("span", { style: { ...T.h3, color: C.textPri } }, "Meta \u2014 ", editing.category), /* @__PURE__ */ React.createElement(FormField, { label: "Limite mensal (R$)", icon: "\u{1F3AF}" }, /* @__PURE__ */ React.createElement("input", { value: editing.value, onChange: (e) => setEditing({ ...editing, value: e.target.value }), type: "number", placeholder: "Ex: 800,00", style: getInputStyle(), autoFocus: true })), /* @__PURE__ */ React.createElement(Btn, { label: saving ? "Salvando..." : "Salvar Meta", color: `linear-gradient(135deg,${C.accentD},#065f46)`, onClick: saveGoal, disabled: saving }))));
 }
+
+
+
+function CardDashboardScreen({ user, onBack, refresh }) {
+  const [cards, setCards] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selCardId, setSelCardId] = useState("Todos");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e] = await Promise.all([
+      dbByIndex("cards", "userId", user.id),
+      dbByIndex("expenses", "userId", user.id)
+    ]);
+    // Filtramos apenas cartões que NÃO são conta corrente (possuem limite)
+    setCards(c.filter(card => !card.isCheckingAccount));
+    setExpenses(e);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  // Lógica de cálculo
+  const stats = useMemo(() => {
+    const filteredCards = selCardId === "Todos" 
+      ? cards 
+      : cards.filter(c => c.id === parseInt(selCardId));
+
+    let totalLimit = 0;
+    let totalUsed = 0;
+
+    filteredCards.forEach(card => {
+      totalLimit += (card.limit || 0);
+      const cardExp = expenses.filter(e => e.card === card.name && !e.paid);
+      totalUsed += cardExp.reduce((a, b) => a + b.amount, 0);
+    });
+
+    const totalAvailable = totalLimit - totalUsed;
+    const usagePct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
+
+    return { totalLimit, totalUsed, totalAvailable, usagePct };
+  }, [cards, expenses, selCardId]);
+
+  if (loading) return <Loader />;
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100dvh", paddingBottom: 90 }}>
+      <TopBar title="Gestão de Limites" onBack={onBack} />
+
+      {/* 🔍 Filtro Superior */}
+      <div style={{ padding: "0 20px 16px" }}>
+        <div style={{ ...T.micro, color: C.textMut, marginBottom: 8 }}>Selecionar Cartão</div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+          <Chip 
+            label="Todos os Cartões" 
+            active={selCardId === "Todos"} 
+            onClick={() => setSelCardId("Todos")} 
+            color={C.accent} 
+          />
+          {cards.map(c => (
+            <Chip 
+              key={c.id} 
+              label={c.name} 
+              active={selCardId === String(c.id)} 
+              onClick={() => setSelCardId(String(c.id))} 
+              color={c.color} 
+            />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        
+        {/* 📊 Card Principal de Resumo */}
+        <SCard style={{ background: `linear-gradient(135deg, ${C.surface}, ${C.bg})` }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ ...T.micro, color: C.textMut }}>Limite Total Disponível</div>
+            <div style={{ ...T.h1, color: C.accent, fontSize: 32 }}>{fmt(stats.totalAvailable)}</div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: C.bg, padding: 12, borderRadius: 12 }}>
+              <div style={{ ...T.micro, color: C.textMut }}>Limite Total</div>
+              <div style={{ ...T.body, fontWeight: 700, color: C.textPri }}>{fmt(stats.totalLimit)}</div>
+            </div>
+            <div style={{ background: C.bg, padding: 12, borderRadius: 12 }}>
+              <div style={{ ...T.micro, color: C.red }}>Total Usado</div>
+              <div style={{ ...T.body, fontWeight: 700, color: C.red }}>{fmt(stats.totalUsed)}</div>
+            </div>
+          </div>
+
+          {/* Barra de Progresso de Uso */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ ...T.small, color: C.textSec }}>Uso do Crédito</span>
+              <span style={{ ...T.small, fontWeight: 700, color: stats.usagePct > 80 ? C.red : C.textPri }}>
+                {stats.usagePct.toFixed(1)}%
+              </span>
+            </div>
+            <div style={{ background: C.border, height: 10, borderRadius: 5, overflow: 'hidden' }}>
+              <div style={{ 
+                width: `${Math.min(stats.usagePct, 100)}%`, 
+                height: '100%', 
+                background: stats.usagePct > 80 ? C.red : stats.usagePct > 50 ? C.yellow : C.accent,
+                transition: 'width 0.5s ease-in-out'
+              }} />
+            </div>
+          </div>
+        </SCard>
+
+        {/* 📋 Detalhamento por Cartão (Lista) */}
+        <div style={{ ...T.h4, color: C.textPri, marginTop: 8 }}>Detalhamento</div>
+        {cards.filter(c => selCardId === "Todos" || String(c.id) === selCardId).map(card => {
+          const used = expenses.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
+          const pct = card.limit ? (used / card.limit) * 100 : 0;
+          
+          return (
+            <SCard key={card.id} style={{ padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 4, background: card.color }} />
+                  <span style={{ ...T.body, fontWeight: 700 }}>{card.name}</span>
+                </div>
+                <span style={{ ...T.small, color: C.textMut }}>Vence dia {card.dueDay}</span>
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: C.textSec }}>Disponível: <strong>{fmt(card.limit - used)}</strong></span>
+                <span style={{ color: C.textMut }}>{fmt(card.limit)}</span>
+              </div>
+              
+              <div style={{ background: C.border, height: 4, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: card.color }} />
+              </div>
+            </SCard>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function RecurringScreen({ user, onBack, onSaved }) {
   const [list, setList] = useState([]);
   const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_INCOME[0], dayOfMonth: "1" });
@@ -1712,37 +1859,80 @@ function App() {
   const [screen, setScreen] = useState("dashboard");
   const [refresh, setRefresh] = useState(0);
   const [dark, setDark] = useState(() => localStorage.getItem(LS_DARK_KEY) === "1");
+
   const triggerRefresh = () => setRefresh((r) => r + 1);
   C = dark ? THEMES.dark : THEMES.light;
   const bg = C.bg;
+
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
     localStorage.setItem(LS_DARK_KEY, next ? "1" : "0");
   };
+
   const sName = typeof screen === "string" ? screen : screen?.name || "";
+  
+  // Acrescentei 'card-dashboard' na lista para que a navegação continue visível
   const showNav = !["add-expense", "add-income", "sync", "edit-expense", "edit-income", "goals", "recurring"].includes(sName);
-  if (!user) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser, dark }));
-  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), (() => {
-    const sName2 = typeof screen === "string" ? screen : screen?.name || "";
-    const sId = typeof screen === "object" ? screen?.id : null;
-    return /* @__PURE__ */ React.createElement(React.Fragment, null, sName2 === "dashboard" && /* @__PURE__ */ React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), sName2 === "add-expense" && /* @__PURE__ */ React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-expense");
-    } }), sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-income");
-    } }), sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-expense");
-    } }), sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-income");
-    } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }));
-  })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
+
+  if (!user) return /* @__PURE__ */ React.createElement(React.Fragment, null, 
+    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
+    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
+    /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser, dark })
+  );
+
+  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, 
+    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
+    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
+    (() => {
+      const sName2 = typeof screen === "string" ? screen : screen?.name || "";
+      const sId = typeof screen === "object" ? screen?.id : null;
+
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, 
+        sName2 === "dashboard" && /* @__PURE__ */ React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), 
+        
+        // --- NOVA ROTA ACRESCENTADA AQUI ---
+        sName2 === "card-dashboard" && /* @__PURE__ */ React.createElement(CardDashboardScreen, { user, onBack: () => setScreen("dashboard"), refresh }),
+        // ----------------------------------
+
+        sName2 === "add-expense" && /* @__PURE__ */ React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-expense");
+        } }), 
+        sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-income");
+        } }), 
+        sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-expense");
+        } }), 
+        sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-income");
+        } }), 
+        sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), 
+        sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), 
+        sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
+        sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
+        sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
+        sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
+        sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("dashboard");
+        } }), 
+        sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh })
+      );
+    })(), 
+    showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), 
+    sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, 
+      /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), 
+      
+      /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("card-dashboard"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg, ${C.purple}, ${C.blue})`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(124,58,237,0.3)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F4B3}"),
+
+      /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")
+    )
+  );
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));
 </script>

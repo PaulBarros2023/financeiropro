@@ -1854,87 +1854,69 @@ function BottomNav({ active, onNav }) {
     return /* @__PURE__ */ React.createElement("button", { key: n.id, onClick: () => onNav(n.id), style: { flex: 1, padding: "10px 4px 8px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 20, color: isActive ? C.accent : C.textMut } }, n.icon), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: isActive ? C.accent : C.textMut, fontWeight: isActive ? 700 : 400 } }, n.label));
   }));
 }
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<script>
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+// 1. DEFINA OS TEMAS E ESTILOS PRIMEIRO
+const THEMES = {
+    light: { bg: "#F0F4F8", surface: "#FFFFFF", card: "#FFFFFF", border: "#E2E8F0", accent: "#059669", accentD: "#047857", red: "#EF4444", yellow: "#D97706", blue: "#2563EB", purple: "#7C3AED", textPri: "#0F172A", textSec: "#475569", textMut: "#94A3B8" },
+    dark: { bg: "#0A0A0F", surface: "#12121A", card: "#1A1A26", border: "#2A2A3A", accent: "#10B981", accentD: "#059669", red: "#F87171", yellow: "#FCD34D", blue: "#60A5FA", purple: "#A78BFA", textPri: "#F1F5F9", textSec: "#94A3B8", textMut: "#475569" }
+};
+
+// Variável mutável para os componentes lerem o tema atual
+let C = THEMES.light; 
+
+// ... Mantenha suas funções de banco de dados aqui (openDB, dbAdd, etc) ...
+
+// 2. INSIRA OS COMPONENTES DE TELA (DashboardScreen, CardDashboardScreen, etc)
+// Certifique-se de que CardDashboardScreen está aqui!
+
+// 3. O COMPONENTE APP CORRIGIDO
 function App() {
-  const [user, setUser] = useState(null);
-  const [screen, setScreen] = useState("dashboard");
-  const [refresh, setRefresh] = useState(0);
-  const [dark, setDark] = useState(() => localStorage.getItem(LS_DARK_KEY) === "1");
+    const [user, setUser] = useState(null);
+    const [screen, setScreen] = useState("dashboard");
+    const [refresh, setRefresh] = useState(0);
+    const [dark, setDark] = useState(() => localStorage.getItem("financaspro_dark") === "1");
 
-  const triggerRefresh = () => setRefresh((r) => r + 1);
-  C = dark ? THEMES.dark : THEMES.light;
-  const bg = C.bg;
+    const triggerRefresh = () => setRefresh(r => r + 1);
+    
+    // Atualiza a referência global de tema antes de renderizar os filhos
+    C = dark ? THEMES.dark : THEMES.light;
 
-  const toggleDark = () => {
-    const next = !dark;
-    setDark(next);
-    localStorage.setItem(LS_DARK_KEY, next ? "1" : "0");
-  };
+    const toggleDark = () => {
+        const next = !dark;
+        setDark(next);
+        localStorage.setItem("financaspro_dark", next ? "1" : "0");
+    };
 
-  const sName = typeof screen === "string" ? screen : screen?.name || "";
-  
-  // Acrescentei 'card-dashboard' na lista para que a navegação continue visível
-  const showNav = !["add-expense", "add-income", "sync", "edit-expense", "edit-income", "goals", "recurring"].includes(sName);
+    if (!user) return React.createElement(LoginScreen, { onLogin: setUser });
 
-  if (!user) return /* @__PURE__ */ React.createElement(React.Fragment, null, 
-    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
-    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
-    /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser, dark })
-  );
+    const sName = typeof screen === "string" ? screen : screen?.name || "";
 
-  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, 
-    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
-    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
-    (() => {
-      const sName2 = typeof screen === "string" ? screen : screen?.name || "";
-      const sId = typeof screen === "object" ? screen?.id : null;
+    return React.createElement("div", { 
+        style: { maxWidth: 430, margin: "0 auto", background: C.bg, minHeight: "100dvh" } 
+    }, [
+        // Lógica de roteamento
+        sName === "dashboard" && React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark }),
+        sName === "card-dashboard" && React.createElement(CardDashboardScreen, { user, onBack: () => setScreen("dashboard"), refresh }),
+        // ... as outras rotas ...
 
-      return /* @__PURE__ */ React.createElement(React.Fragment, null, 
-        sName2 === "dashboard" && /* @__PURE__ */ React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), 
-        
-        // --- NOVA ROTA ACRESCENTADA AQUI ---
-        sName2 === "card-dashboard" && /* @__PURE__ */ React.createElement(CardDashboardScreen, { user, onBack: () => setScreen("dashboard"), refresh }),
-        // ----------------------------------
-
-        sName2 === "add-expense" && /* @__PURE__ */ React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-          triggerRefresh();
-          setScreen("history-expense");
-        } }), 
-        sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-          triggerRefresh();
-          setScreen("history-income");
-        } }), 
-        sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {
-          triggerRefresh();
-          setScreen("history-expense");
-        } }), 
-        sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
-          triggerRefresh();
-          setScreen("history-income");
-        } }), 
-        sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), 
-        sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), 
-        sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
-        sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
-        sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
-        sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
-        sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-          triggerRefresh();
-          setScreen("dashboard");
-        } }), 
-        sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh })
-      );
-    })(), 
-    showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), 
-    sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, 
-      /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), 
-      
-      /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("card-dashboard"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg, ${C.purple}, ${C.blue})`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(124,58,237,0.3)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F4B3}"),
-
-      /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")
-    )
-  );
+        // Botões Flutuantes (Só aparecem na Dashboard)
+        sName === "dashboard" && React.createElement("div", { 
+            style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10 } 
+        }, [
+            React.createElement("button", { onClick: toggleDark, style: btnFloatStyle }, dark ? "☀️" : "🌙"),
+            React.createElement("button", { onClick: () => setScreen("card-dashboard"), style: btnCardStyle }, "💳")
+        ])
+    ]);
 }
-window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));
+
+// 4. RENDERIZAÇÃO FINAL (Compatível com React 18)
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
 </script>
 </body>
 </html>

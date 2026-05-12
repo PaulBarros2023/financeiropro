@@ -438,8 +438,8 @@ function defaultExpenseDate(dueDay) {
   if (today >= period.start && today <= period.end) return today;
   return period.start;
 }
-const CATEGORIES_EXPENSE = ["Alimenta\xE7\xE3o", "Transporte", "Moradia", "Sa\xFAde", "Lazer", "Educa\xE7\xE3o", "Outros"];
-const CATEGORIES_INCOME = ["Sal\xE1rio", "Freelance", "Investimentos", "Aluguel", "Outros"];
+const CATEGORIES_EXPENSE = ["Alimenta\xE7\xE3o", "Transporte", "Moradia", "Sa\xFAde", "Lazer", "Educa\xE7\xE3o", "Outros","Gasolina", "Saida casal", "Viagens", "Outros"];
+const CATEGORIES_INCOME = ["Sal\xE1rio", "Freelance", "Investimentos", "Aluguel", "Outros","Ticket","Assistencia", "Poupanca"];
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const CARD_COLORS = [
   "#8B5CF6",
@@ -1535,6 +1535,154 @@ function EditIncomeScreen({ user, incomeId, onBack, onSaved }) {
   if (!form) return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100dvh" } }, /* @__PURE__ */ React.createElement(TopBar, { title: "Editar Receita", onBack }), /* @__PURE__ */ React.createElement(Loader, null));
   return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 40 } }, /* @__PURE__ */ React.createElement(TopBar, { title: "Editar Receita", onBack }), /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 20px", display: "flex", flexDirection: "column", gap: 14 } }, saved && /* @__PURE__ */ React.createElement(Toast, { msg: "Receita atualizada!" }), /* @__PURE__ */ React.createElement(FormField, { label: "Descri\xE7\xE3o", icon: "\u{1F4DD}" }, /* @__PURE__ */ React.createElement("input", { value: form.desc, onChange: (e) => setForm({ ...form, desc: e.target.value }), style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Valor (R$)", icon: "\u{1F4B0}" }, /* @__PURE__ */ React.createElement("input", { value: form.amount, onChange: (e) => setForm({ ...form, amount: e.target.value }), type: "number", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Categoria", icon: "\u{1F3F7}\uFE0F" }, /* @__PURE__ */ React.createElement("select", { value: form.category, onChange: (e) => setForm({ ...form, category: e.target.value }), style: getInputStyle() }, CATEGORIES_INCOME.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c)))), /* @__PURE__ */ React.createElement(FormField, { label: "Data", icon: "\u{1F4C5}" }, /* @__PURE__ */ React.createElement("input", { value: form.date, onChange: (e) => setForm({ ...form, date: e.target.value }), type: "date", style: getInputStyle() })), /* @__PURE__ */ React.createElement(Btn, { label: saving ? "Salvando..." : "Salvar altera\xE7\xF5es", color: `linear-gradient(135deg,${C.accentD},#065f46)`, onClick: handle, disabled: saving })));
 }
+
+function CardDashboardScreen({ user, onBack, refresh }) {
+  const [cards, setCards] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selCardId, setSelCardId] = useState("Todos");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e] = await Promise.all([
+      dbByIndex("cards", "userId", user.id),
+      dbByIndex("expenses", "userId", user.id)
+    ]);
+    // Filtramos apenas cartões que NÃO são conta corrente (possuem limite)
+    setCards(c.filter(card => !card.isCheckingAccount));
+    setExpenses(e);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  // Lógica de cálculo
+  const stats = useMemo(() => {
+    const filteredCards = selCardId === "Todos" 
+      ? cards 
+      : cards.filter(c => c.id === parseInt(selCardId));
+
+    let totalLimit = 0;
+    let totalUsed = 0;
+
+    filteredCards.forEach(card => {
+      totalLimit += (card.limit || 0);
+      const cardExp = expenses.filter(e => e.card === card.name && !e.paid);
+      totalUsed += cardExp.reduce((a, b) => a + b.amount, 0);
+    });
+
+    const totalAvailable = totalLimit - totalUsed;
+    const usagePct = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
+
+    return { totalLimit, totalUsed, totalAvailable, usagePct };
+  }, [cards, expenses, selCardId]);
+
+  if (loading) return <Loader />;
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100dvh", paddingBottom: 90 }}>
+      <TopBar title="Gestão de Limites" onBack={onBack} />
+
+      {/* 🔍 Filtro Superior */}
+      <div style={{ padding: "0 20px 16px" }}>
+        <div style={{ ...T.micro, color: C.textMut, marginBottom: 8 }}>Selecionar Cartão</div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+          <Chip 
+            label="Todos os Cartões" 
+            active={selCardId === "Todos"} 
+            onClick={() => setSelCardId("Todos")} 
+            color={C.accent} 
+          />
+          {cards.map(c => (
+            <Chip 
+              key={c.id} 
+              label={c.name} 
+              active={selCardId === String(c.id)} 
+              onClick={() => setSelCardId(String(c.id))} 
+              color={c.color} 
+            />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        
+        {/* 📊 Card Principal de Resumo */}
+        <SCard style={{ background: `linear-gradient(135deg, ${C.surface}, ${C.bg})` }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ ...T.micro, color: C.textMut }}>Limite Total Disponível</div>
+            <div style={{ ...T.h1, color: C.accent, fontSize: 32 }}>{fmt(stats.totalAvailable)}</div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: C.bg, padding: 12, borderRadius: 12 }}>
+              <div style={{ ...T.micro, color: C.textMut }}>Limite Total</div>
+              <div style={{ ...T.body, fontWeight: 700, color: C.textPri }}>{fmt(stats.totalLimit)}</div>
+            </div>
+            <div style={{ background: C.bg, padding: 12, borderRadius: 12 }}>
+              <div style={{ ...T.micro, color: C.red }}>Total Usado</div>
+              <div style={{ ...T.body, fontWeight: 700, color: C.red }}>{fmt(stats.totalUsed)}</div>
+            </div>
+          </div>
+
+          {/* Barra de Progresso de Uso */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ ...T.small, color: C.textSec }}>Uso do Crédito</span>
+              <span style={{ ...T.small, fontWeight: 700, color: stats.usagePct > 80 ? C.red : C.textPri }}>
+                {stats.usagePct.toFixed(1)}%
+              </span>
+            </div>
+            <div style={{ background: C.border, height: 10, borderRadius: 5, overflow: 'hidden' }}>
+              <div style={{ 
+                width: `${Math.min(stats.usagePct, 100)}%`, 
+                height: '100%', 
+                background: stats.usagePct > 80 ? C.red : stats.usagePct > 50 ? C.yellow : C.accent,
+                transition: 'width 0.5s ease-in-out'
+              }} />
+            </div>
+          </div>
+        </SCard>
+
+        {/* 📋 Detalhamento por Cartão (Lista) */}
+        <div style={{ ...T.h4, color: C.textPri, marginTop: 8 }}>Detalhamento</div>
+        {cards.filter(c => selCardId === "Todos" || String(c.id) === selCardId).map(card => {
+          const used = expenses.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
+          const pct = card.limit ? (used / card.limit) * 100 : 0;
+          
+          return (
+            <SCard key={card.id} style={{ padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 4, background: card.color }} />
+                  <span style={{ ...T.body, fontWeight: 700 }}>{card.name}</span>
+                </div>
+                <span style={{ ...T.small, color: C.textMut }}>Vence dia {card.dueDay}</span>
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: C.textSec }}>Disponível: <strong>{fmt(card.limit - used)}</strong></span>
+                <span style={{ color: C.textMut }}>{fmt(card.limit)}</span>
+              </div>
+              
+              <div style={{ background: C.border, height: 4, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: card.color }} />
+              </div>
+            </SCard>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+    
 function GoalsScreen({ user, onBack, refresh, onRefresh }) {
   const [goals, setGoals] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -1730,6 +1878,14 @@ function App() {
       triggerRefresh();
       setScreen("history-expense");
     } }), sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+
+
+
+        
+      triggerRefresh();
+      setScreen("history-income");
+    } }), sName2 === "card-dashboard" && /* @__PURE__ */ React.createElement(CardDashboardScreen, { user, expenseId: sId, onBack: () => setScreen("hdashboard"), onSaved: () => {
+        
       triggerRefresh();
       setScreen("history-income");
     } }), sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {

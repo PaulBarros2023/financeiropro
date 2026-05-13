@@ -1713,7 +1713,7 @@ function LimitsScreen({ user, onBack, refresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selPeriodKey, setSelPeriodKey] = useState("current");
+  const [selPeriodKey, setSelPeriodKey] = useState("all"); // "all" para pegar todo o saldo devedor acumulado
   const [selCard, setSelCard] = useState("Todos");
 
   const load = useCallback(async () => {
@@ -1734,12 +1734,9 @@ function LimitsScreen({ user, onBack, refresh }) {
   
   const getFilteredExpenses = () => {
     const base = expenses.filter((e) => !e.isCheckingDebit);
-    if (selPeriodKey === "all") return base;
+    if (selPeriodKey === "all") return base; // Puxa todas as despesas do banco
     const p = selPeriodKey === "current" ? periods[0] : periods.find((x) => x.key === selPeriodKey);
-    if (!p) {
-        const nowM = (new Date()).getMonth() + 1;
-        return base.filter((e) => e.month === nowM);
-    }
+    if (!p) return base;
     return base.filter((e) => e.date >= p.start && e.date <= p.end);
   };
 
@@ -1749,11 +1746,12 @@ function LimitsScreen({ user, onBack, refresh }) {
   return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, { title: "Limites", onBack }),
     
-    // Filtros Enxutos
+    // Filtros
     React.createElement("div", { style: { padding: "6px 20px", display: "flex", flexDirection: "column", gap: 8 } },
       React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
+        React.createElement(Chip, { label: "Todo Período", active: selPeriodKey === "all", onClick: () => setSelPeriodKey("all"), color: C.blue }),
         React.createElement(Chip, { label: "Fatura Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }),
-        periods.slice(1, 5).map((p) => React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue }))
+        periods.slice(1, 3).map((p) => React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue }))
       ),
       React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" } },
         React.createElement(Chip, { label: "Todos Cartões", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.purple }),
@@ -1765,25 +1763,32 @@ function LimitsScreen({ user, onBack, refresh }) {
       React.createElement(SCard, { style: { padding: 0, overflow: "hidden" } },
         creditCards.length === 0 ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 24 } }, "Nenhum cartão de crédito") :
         creditCards.map((card, i) => {
-          const gasto = filteredExp.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
+          
+          // LÓGICA SOLICITADA:
+          // 1. Puxa todas as despesas PENDENTES (paid === false) para este cartão
+          const gasto = filteredExp
+            .filter(e => e.card === card.name && e.paid === false)
+            .reduce((a, b) => a + b.amount, 0);
+          
+          // 2. Limite cadastrado no banco
           const limite = card.limit || 0;
-          const disponivel = Math.max(0, limite - gasto);
+          
+          // 3. Disponível = Limite - Gasto
+          const disponivel = limite - gasto;
 
           return React.createElement("div", { key: card.id, style: { padding: "14px 16px", borderBottom: i < creditCards.length - 1 ? `1px solid ${C.border}` : "none", borderLeft: `4px solid ${card.color}` } },
-            // Linha Superior: Nome e Limite Total
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
               React.createElement("span", { style: { ...T.body, fontWeight: 700, color: C.textPri } }, card.name),
               React.createElement("span", { style: { ...T.small, color: C.textMut } }, "Lim: ", fmt(limite))
             ),
-            // Linha Inferior: Gasto e Disponível (Lado a Lado)
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end" } },
               React.createElement("div", { style: { display: "flex", gap: 12 } },
                 React.createElement("div", null,
-                  React.createElement("div", { style: { ...T.micro, color: C.red, fontSize: 9 } }, "Gasto"),
+                  React.createElement("div", { style: { ...T.micro, color: C.red, fontSize: 9 } }, "Gasto Pendente"),
                   React.createElement("div", { style: { ...T.mono, color: C.red, fontSize: 13 } }, fmt(gasto))
                 ),
                 React.createElement("div", null,
-                  React.createElement("div", { style: { ...T.micro, color: C.accent, fontSize: 9 } }, "Livre"),
+                  React.createElement("div", { style: { ...T.micro, color: C.accent, fontSize: 9 } }, "Disponível"),
                   React.createElement("div", { style: { ...T.mono, color: C.accent, fontSize: 13 } }, fmt(disponivel))
                 )
               ),
@@ -1795,7 +1800,6 @@ function LimitsScreen({ user, onBack, refresh }) {
     )
   );
 }
-
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");

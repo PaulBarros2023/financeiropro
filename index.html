@@ -1707,6 +1707,104 @@ function BottomNav({ active, onNav }) {
     return /* @__PURE__ */ React.createElement("button", { key: n.id, onClick: () => onNav(n.id), style: { flex: 1, padding: "10px 4px 8px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 20, color: isActive ? C.accent : C.textMut } }, n.icon), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: isActive ? C.accent : C.textMut, fontWeight: isActive ? 700 : 400 } }, n.label));
   }));
 }
+
+
+
+function LimitsScreen({ user, onBack, refresh }) {
+  const [cards, setCards] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selPeriodKey, setSelPeriodKey] = useState("current");
+  const [selCard, setSelCard] = useState("Todos");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e] = await Promise.all([
+      dbByIndex("cards", "userId", user.id),
+      dbByIndex("expenses", "userId", user.id)
+    ]);
+    setCards(c);
+    setExpenses(e);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  const primaryCard = cards.find((c) => c.dueDay && !c.isCheckingAccount);
+  const periods = primaryCard ? billingPeriods(primaryCard.dueDay, 8) : [];
+  
+  // Lógica de filtragem por período (igual ao histórico)
+  const getFilteredExpenses = () => {
+    const base = expenses.filter((e) => !e.isCheckingDebit);
+    if (selPeriodKey === "all") return base;
+    const p = selPeriodKey === "current" ? periods[0] : periods.find((x) => x.key === selPeriodKey);
+    if (!p) {
+        const nowM = (new Date()).getMonth() + 1;
+        return base.filter((e) => e.month === nowM);
+    }
+    return base.filter((e) => e.date >= p.start && e.date <= p.end);
+  };
+
+  const filteredExp = getFilteredExpenses();
+  const creditCards = cards.filter(c => !c.isCheckingAccount && (selCard === "Todos" || c.name === selCard));
+
+  return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 90 } },
+    React.createElement(TopBar, { title: "Limites de Crédito", onBack }),
+    
+    // Filtros de Período
+    React.createElement("div", { style: { padding: "6px 20px" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Fatura / Referência"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
+        React.createElement(Chip, { label: "Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }),
+        periods.slice(1, 5).map((p) => React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue }))
+      )
+    ),
+
+    // Filtro de Cartões
+    React.createElement("div", { style: { padding: "0 20px 12px" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Filtrar Cartão"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" } },
+        React.createElement(Chip, { label: "Todos", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.purple }),
+        cards.filter(c => !c.isCheckingAccount).map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === c.name, onClick: () => setSelCard(c.name), color: C.purple }))
+      )
+    ),
+
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px", display: "flex", flexDirection: "column", gap: 16 } },
+      creditCards.length === 0 ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Nenhum cartão de crédito encontrado") : 
+      creditCards.map(card => {
+        const gasto = filteredExp.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
+        const limite = card.limit || 0;
+        const disponivel = Math.max(0, limite - gasto);
+        const pct = limite > 0 ? (gasto / limite) * 100 : 0;
+
+        return React.createElement(SCard, { key: card.id, style: { borderLeft: `6px solid ${card.color}` } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 12 } },
+            React.createElement("span", { style: { ...T.h4, color: C.textPri } }, card.name),
+            React.createElement("span", { style: { ...T.small, color: C.textMut } }, "Vence dia ", card.dueDay)
+          ),
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 15 } },
+            React.createElement("div", null, 
+                React.createElement("div", { style: { ...T.micro, color: C.textMut } }, "Limite Total"),
+                React.createElement("div", { style: { ...T.mono, color: C.textPri } }, fmt(limite))
+            ),
+            React.createElement("div", { style: { textAlign: "right" } }, 
+                React.createElement("div", { style: { ...T.micro, color: C.red } }, "Gasto no Período"),
+                React.createElement("div", { style: { ...T.mono, color: C.red } }, fmt(gasto))
+            )
+          ),
+          React.createElement("div", { style: { background: C.border + "55", borderRadius: 12, padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+            React.createElement("span", { style: { ...T.body, color: C.textSec, fontWeight: 600 } }, "Disponível"),
+            React.createElement("span", { style: { ...T.h3, color: C.accent, fontWeight: 800 } }, fmt(disponivel))
+          ),
+          // Barra de progresso visual
+          React.createElement("div", { style: { marginTop: 12, background: C.border, height: 6, borderRadius: 3, overflow: "hidden" } },
+            React.createElement("div", { style: { background: pct > 90 ? C.red : card.color, width: `${Math.min(100, pct)}%`, height: "100%", transition: "width 0.5s" } })
+          )
+        );
+      })
+    )
+  );
+}
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");
@@ -1741,7 +1839,7 @@ function App() {
     } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
       triggerRefresh();
       setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }));
+    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }));
   })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));

@@ -1161,15 +1161,11 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
 
   const renderCard = (card, index, isChecking) => {
-    // 1. Filtra despesas vinculadas ao nome deste cartão (ou conta)
     const cardExp = expenses.filter((e) => e.card === card.name);
-    
-    // 2. Filtra receitas vinculadas ao ID desta conta corrente específica
     const cardInc = isChecking 
       ? incomes.filter((i) => String(i.checkingCardId) === String(card.id))
       : [];
 
-    // 3. UNE OS DADOS: Mapeia as receitas para identificar o sinal positivo no visual
     const allEntries = [
       ...cardExp.map(e => ({ ...e, isIncome: false })),
       ...cardInc.map(i => ({ ...i, isIncome: true }))
@@ -1179,7 +1175,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
 
     return React.createElement("div", { key: card.id, style: { minWidth: "100%", transition: "all 0.4s ease" } },
-      /* VISUAL DO CARTÃO */
+      /* VISUAL DO CARTÃO - PADRÃO ITAÚ */
       React.createElement("div", { 
         style: { 
           background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`, 
@@ -1237,24 +1233,32 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
         )
       ),
 
-      /* LISTA DE LANÇAMENTOS - MOSTRA RECEITAS E DESPESAS */
+      /* LISTA DE LANÇAMENTOS COM STATUS E DATAS */
       allEntries.length > 0 && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, margin: "0 -20px", padding: "20px" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),
           React.createElement("span", { style: { color: "#FF6200", fontWeight: 700, fontSize: 14 } }, "⇅ Filtros")
         ),
-        allEntries.slice(0, 10).map((e) => React.createElement("div", { key: e.id, style: { marginBottom: 24 } },
-          React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.textPri, marginBottom: 8 } }, 
-            new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
-          ),
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-            React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
-              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, e.desc),
-              React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2 } }, e.isIncome ? "Entrada na conta" : (e.paid ? "Pago" : "Pendente"))
+        allEntries.slice(0, 10).map((e) => {
+          const statusText = e.isIncome ? "RECEBIDO" : (e.paid ? "BAIXADA" : "PENDENTE");
+          const statusColor = e.isIncome ? C.accent : (e.paid ? C.accent : C.red);
+          
+          return React.createElement("div", { key: e.id, style: { marginBottom: 24 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.textPri, marginBottom: 8 } }, 
+              new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
             ),
-            React.createElement("div", { style: { fontWeight: 700, color: e.isIncome ? C.accent : (e.paid ? C.accent : C.textPri), fontSize: 14, flexShrink: 0 } }, (e.isIncome ? "+" : "-") + fmt(e.amount))
-          )
-        ))
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+              React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
+                React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, e.desc),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginTop: 2 } },
+                  React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, e.isIncome ? "Entrada na conta" : "Cartão físico"),
+                  React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: statusColor, background: statusColor + "15", padding: "2px 6px", borderRadius: 4 } }, statusText)
+                )
+              ),
+              React.createElement("div", { style: { fontWeight: 700, color: e.isIncome ? C.accent : (e.paid ? C.accent : C.textPri), fontSize: 14, flexShrink: 0 } }, (e.isIncome ? "+" : "-") + fmt(e.amount))
+            )
+          );
+        })
       )
     );
   };
@@ -1266,6 +1270,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     }),
 
     loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+      /* CARROSSEL */
       cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),

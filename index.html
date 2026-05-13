@@ -1932,29 +1932,6 @@ function CalendarScreen({ user, onBack, refresh }) {
     )
   );
 }
-
-    // Detalhes do Dia Selecionado
-    React.createElement("div", { style: { padding: "10px 20px" } },
-      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 8 } }, "Vencimentos do dia ", selectedDay),
-      selectedEntries.length === 0 ? 
-        React.createElement("div", { style: { textAlign: "center", padding: 30, color: C.textMut, fontSize: 13 } }, "Nada previsto para este dia. ✨") :
-        selectedEntries.map(e => (
-          React.createElement(SCard, { key: e.id, style: { marginBottom: 10, padding: 12, borderLeft: `4px solid ${C.red}` } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-              React.createElement("div", { style: { flex: 1 } },
-                React.createElement("div", { style: { ...T.body, fontWeight: 700, color: C.textPri } }, e.desc),
-                React.createElement("div", { style: { ...T.small, color: C.textMut } }, e.card ? `💳 ${e.card}` : `🏷️ ${e.category}`)
-              ),
-              React.createElement("div", { style: { textAlign: "right" } },
-                React.createElement("div", { style: { ...T.mono, color: C.red, fontWeight: 700 } }, fmt(e.amount)),
-                React.createElement("div", { style: { ...T.micro, color: C.yellow } }, "PENDENTE")
-              )
-            )
-          )
-        ))
-    )
-  );
-}
     
 function App() {
   const [user, setUser] = useState(null);

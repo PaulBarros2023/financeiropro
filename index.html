@@ -1697,6 +1697,7 @@ const navItems = [
   { id: "dashboard", icon: "\u229E", label: "In\xEDcio" },
   { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" }, // <-- Novo item
   { id: "history-expense", icon: "\u2193", label: "Despesas" },
+  { id: "agrupar", icon: "\u{1F4E6}", label: "Agrupar" },
   { id: "extract", icon: "\u{1F4CB}", label: "Extrato" },
   { id: "history-income", icon: "\u2191", label: "Receitas" },
   { id: "limits", icon: "\u{1F4CA}", label: "Limites" }, // <-- Implementado aqui
@@ -1932,7 +1933,150 @@ function CalendarScreen({ user, onBack, refresh }) {
     )
   );
 }
+
+function AgruparScreen({ user, onBack, onSaved, refresh }) {
+  const [expenses, setExpenses] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [processing, setSaving] = useState(false);
+  const [selCard, setSelCard] = useState("Todos");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [e, c] = await Promise.all([
+      dbByIndex("expenses", "userId", user.id),
+      dbByIndex("cards", "userId", user.id)
+    ]);
+    // Apenas despesas não pagas e que não são débitos automáticos de conta corrente
+    setExpenses(e.filter(x => !x.paid && !x.isCheckingDebit));
+    setCards(c);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  const toggleSelect = (id) => {
+    const next = new Set(selectedIds);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedIds(next);
+  };
+
+  const filtered = expenses.filter(e => selCard === "Todos" || e.card === selCard);
+  const selectedList = expenses.filter(e => selectedIds.has(e.id));
+  const totalGeral = selectedList.reduce((a, b) => a + b.amount, 0);
+
+  const handleAgrupar = async () => {
+    if (selectedIds.size < 2) {
+      alert("Selecione pelo menos 2 despesas para agrupar.");
+      return;
+    }
     
+    const cardAlvo = cards.find(c => c.name === (selCard === "Todos" ? selectedList[0].card : selCard));
+    if (!cardAlvo) {
+      alert("Selecione um cartão específico no filtro para definir o vencimento corretamente.");
+      return;
+    }
+
+    if (!confirm(`Agrupar ${selectedIds.size} itens em uma única fatura de ${fmt(totalGeral)}? As originais serão apagadas.`)) return;
+
+    setSaving(true);
+    try {
+      const hoje = new Date();
+      const vencimentoData = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(cardAlvo.dueDay || 1).padStart(2, '0')}`;
+      
+      // 1. Criar a nova despesa agrupada
+      const novaFatura = {
+        userId: user.id,
+        desc: `Fatura Agrupada - ${cardAlvo.name}`,
+        amount: totalGeral,
+        category: "Outros",
+        card: cardAlvo.name,
+        date: vencimentoData,
+        month: hoje.getMonth() + 1,
+        year: hoje.getFullYear(),
+        paid: false,
+        createdAt: new Date().toISOString(),
+        isAgrupado: true
+      };
+
+      await dbAdd("expenses", novaFatura);
+
+      // 2. Excluir as antigas
+      for (const id of selectedIds) {
+        await dbDelete("expenses", id);
+      }
+
+      await logAction(user.id, "expense", "agrupar", { total: totalGeral, itens: selectedIds.size });
+      
+      alert("Fatura gerada com sucesso!");
+      setSelectedIds(new Set());
+      onSaved();
+    } catch (err) {
+      alert("Erro ao agrupar: " + err.message);
+    }
+    setSaving(false);
+  };
+
+  return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 100 } },
+    React.createElement(TopBar, { title: "Agrupar Despesas", onBack }),
+    
+    // Filtro de Cartão (Necessário para saber qual vencimento usar)
+    React.createElement("div", { style: { padding: "10px 20px" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 8 } }, "Selecione o Cartão Origem"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" } },
+        React.createElement(Chip, { label: "Todos", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.purple }),
+        cards.map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === c.name, onClick: () => setSelCard(c.name), color: C.purple }))
+      )
+    ),
+
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+      React.createElement(SCard, { style: { padding: 0, overflow: "hidden" } },
+        filtered.length === 0 ? React.createElement("div", { style: { padding: 40, textAlign: 'center', color: C.textMut } }, "Nenhuma despesa pendente.") :
+        filtered.map((e, i) => {
+          const isSelected = selectedIds.has(e.id);
+          return React.createElement("div", { 
+            key: e.id, 
+            onClick: () => toggleSelect(e.id),
+            style: { 
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", 
+              borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none",
+              background: isSelected ? C.accent + "11" : "transparent"
+            } 
+          },
+            React.createElement("input", { type: "checkbox", checked: isSelected, readOnly: true, style: { width: 18, height: 18 } }),
+            React.createElement("div", { style: { flex: 1 } },
+              React.createElement("div", { style: { ...T.body, fontWeight: 600, color: C.textPri } }, e.desc),
+              React.createElement("div", { style: { ...T.small, color: C.textMut } }, e.card, " • ", e.date.split("-").reverse().join("/"))
+            ),
+            React.createElement("span", { style: { ...T.mono, color: C.red, fontWeight: 700 } }, fmt(e.amount))
+          );
+        })
+      )
+    ),
+
+    // Barra Flutuante de Ação
+    selectedIds.size > 0 && React.createElement("div", { 
+      style: { 
+        position: "fixed", bottom: 20, left: 20, right: 20, 
+        background: C.surface, padding: 16, borderRadius: 16, 
+        boxShadow: "0 8px 30px rgba(0,0,0,0.2)", display: "flex", 
+        flexDirection: "column", gap: 12, zIndex: 1000, border: `1px solid ${C.accent}`
+      } 
+    },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("span", { style: { ...T.small, color: C.textSec } }, selectedIds.size, " itens selecionados"),
+        React.createElement("span", { style: { ...T.h3, color: C.red } }, fmt(totalGeral))
+      ),
+      React.createElement(Btn, { 
+        label: processing ? "Processando..." : "Gerar Fatura Agrupada", 
+        color: `linear-gradient(135deg, ${C.accentD}, #064e3b)`, 
+        onClick: handleAgrupar,
+        disabled: processing
+      })
+    )
+  );
+}
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");
@@ -1967,7 +2111,7 @@ function App() {
     } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
       triggerRefresh();
       setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }));
+    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "agrupar" && /* @__PURE__ */ React.createElement(AgruparScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, refresh }));
   })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));

@@ -1709,8 +1709,6 @@ function BottomNav({ active, onNav }) {
   }));
 }
 
-
-
 function LimitsScreen({ user, onBack, refresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -1734,7 +1732,6 @@ function LimitsScreen({ user, onBack, refresh }) {
   const primaryCard = cards.find((c) => c.dueDay && !c.isCheckingAccount);
   const periods = primaryCard ? billingPeriods(primaryCard.dueDay, 8) : [];
   
-  // Lógica de filtragem por período (igual ao histórico)
   const getFilteredExpenses = () => {
     const base = expenses.filter((e) => !e.isCheckingDebit);
     if (selPeriodKey === "all") return base;
@@ -1750,62 +1747,55 @@ function LimitsScreen({ user, onBack, refresh }) {
   const creditCards = cards.filter(c => !c.isCheckingAccount && (selCard === "Todos" || c.name === selCard));
 
   return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 90 } },
-    React.createElement(TopBar, { title: "Limites de Crédito", onBack }),
+    React.createElement(TopBar, { title: "Limites", onBack }),
     
-    // Filtros de Período
-    React.createElement("div", { style: { padding: "6px 20px" } },
-      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Fatura / Referência"),
+    // Filtros Enxutos
+    React.createElement("div", { style: { padding: "6px 20px", display: "flex", flexDirection: "column", gap: 8 } },
       React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
-        React.createElement(Chip, { label: "Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }),
+        React.createElement(Chip, { label: "Fatura Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }),
         periods.slice(1, 5).map((p) => React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue }))
-      )
-    ),
-
-    // Filtro de Cartões
-    React.createElement("div", { style: { padding: "0 20px 12px" } },
-      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Filtrar Cartão"),
+      ),
       React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" } },
-        React.createElement(Chip, { label: "Todos", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.purple }),
+        React.createElement(Chip, { label: "Todos Cartões", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.purple }),
         cards.filter(c => !c.isCheckingAccount).map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === c.name, onClick: () => setSelCard(c.name), color: C.purple }))
       )
     ),
 
-    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px", display: "flex", flexDirection: "column", gap: 16 } },
-      creditCards.length === 0 ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Nenhum cartão de crédito encontrado") : 
-      creditCards.map(card => {
-        const gasto = filteredExp.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
-        const limite = card.limit || 0;
-        const disponivel = Math.max(0, limite - gasto);
-        const pct = limite > 0 ? (gasto / limite) * 100 : 0;
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+      React.createElement(SCard, { style: { padding: 0, overflow: "hidden" } },
+        creditCards.length === 0 ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 24 } }, "Nenhum cartão de crédito") :
+        creditCards.map((card, i) => {
+          const gasto = filteredExp.filter(e => e.card === card.name && !e.paid).reduce((a, b) => a + b.amount, 0);
+          const limite = card.limit || 0;
+          const disponivel = Math.max(0, limite - gasto);
 
-        return React.createElement(SCard, { key: card.id, style: { borderLeft: `6px solid ${card.color}` } },
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 12 } },
-            React.createElement("span", { style: { ...T.h4, color: C.textPri } }, card.name),
-            React.createElement("span", { style: { ...T.small, color: C.textMut } }, "Vence dia ", card.dueDay)
-          ),
-          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 15 } },
-            React.createElement("div", null, 
-                React.createElement("div", { style: { ...T.micro, color: C.textMut } }, "Limite Total"),
-                React.createElement("div", { style: { ...T.mono, color: C.textPri } }, fmt(limite))
+          return React.createElement("div", { key: card.id, style: { padding: "14px 16px", borderBottom: i < creditCards.length - 1 ? `1px solid ${C.border}` : "none", borderLeft: `4px solid ${card.color}` } },
+            // Linha Superior: Nome e Limite Total
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+              React.createElement("span", { style: { ...T.body, fontWeight: 700, color: C.textPri } }, card.name),
+              React.createElement("span", { style: { ...T.small, color: C.textMut } }, "Lim: ", fmt(limite))
             ),
-            React.createElement("div", { style: { textAlign: "right" } }, 
-                React.createElement("div", { style: { ...T.micro, color: C.red } }, "Gasto no Período"),
-                React.createElement("div", { style: { ...T.mono, color: C.red } }, fmt(gasto))
+            // Linha Inferior: Gasto e Disponível (Lado a Lado)
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end" } },
+              React.createElement("div", { style: { display: "flex", gap: 12 } },
+                React.createElement("div", null,
+                  React.createElement("div", { style: { ...T.micro, color: C.red, fontSize: 9 } }, "Gasto"),
+                  React.createElement("div", { style: { ...T.mono, color: C.red, fontSize: 13 } }, fmt(gasto))
+                ),
+                React.createElement("div", null,
+                  React.createElement("div", { style: { ...T.micro, color: C.accent, fontSize: 9 } }, "Livre"),
+                  React.createElement("div", { style: { ...T.mono, color: C.accent, fontSize: 13 } }, fmt(disponivel))
+                )
+              ),
+              React.createElement("span", { style: { ...T.micro, color: C.textMut, fontSize: 9 } }, "Venc. dia ", card.dueDay)
             )
-          ),
-          React.createElement("div", { style: { background: C.border + "55", borderRadius: 12, padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
-            React.createElement("span", { style: { ...T.body, color: C.textSec, fontWeight: 600 } }, "Disponível"),
-            React.createElement("span", { style: { ...T.h3, color: C.accent, fontWeight: 800 } }, fmt(disponivel))
-          ),
-          // Barra de progresso visual
-          React.createElement("div", { style: { marginTop: 12, background: C.border, height: 6, borderRadius: 3, overflow: "hidden" } },
-            React.createElement("div", { style: { background: pct > 90 ? C.red : card.color, width: `${Math.min(100, pct)}%`, height: "100%", transition: "width 0.5s" } })
-          )
-        );
-      })
+          );
+        })
+      )
     )
   );
 }
+
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");

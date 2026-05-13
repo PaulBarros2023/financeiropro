@@ -1695,6 +1695,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
 }
 const navItems = [
   { id: "dashboard", icon: "\u229E", label: "In\xEDcio" },
+  { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" }, // <-- Novo item
   { id: "history-expense", icon: "\u2193", label: "Despesas" },
   { id: "extract", icon: "\u{1F4CB}", label: "Extrato" },
   { id: "history-income", icon: "\u2191", label: "Receitas" },
@@ -1800,6 +1801,90 @@ function LimitsScreen({ user, onBack, refresh }) {
     )
   );
 }
+
+
+function CalendarScreen({ user, onBack, refresh }) {
+  const [cards, setCards] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e] = await Promise.all([
+      dbByIndex("cards", "userId", user.id),
+      dbByIndex("expenses", "userId", user.id)
+    ]);
+    setCards(c.filter(x => !x.isCheckingAccount)); // Apenas cartões de crédito
+    setExpenses(e.filter(x => !x.isCheckingDebit));
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  const today = new Date();
+  const currentDay = today.getDate();
+
+  // Ordena os cartões pelo dia de vencimento mais próximo
+  const sortedCards = [...cards].sort((a, b) => a.dueDay - b.dueDay);
+
+  return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 90 } },
+    React.createElement(TopBar, { title: "Agenda Financeira", onBack }),
+    
+    React.createElement("div", { style: { padding: "10px 20px" } },
+      React.createElement(SCard, { style: { background: `linear-gradient(135deg, ${C.blue}, ${C.purple})`, border: "none" } },
+        React.createElement("div", { style: { color: "#fff", ...T.body, opacity: 0.9 } }, "Hoje é dia"),
+        React.createElement("div", { style: { color: "#fff", ...T.h1 } }, currentDay, " de ", MONTHS[today.getMonth()]),
+        React.createElement("div", { style: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 4 } }, "Confira os vencimentos e melhores datas de compra.")
+      )
+    ),
+
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "10px 20px", display: "flex", flexDirection: "column", gap: 12 } },
+      sortedCards.length === 0 ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 40 } }, "Nenhum cartão cadastrado.") :
+      sortedCards.map((card) => {
+        const p = billingPeriod(card.dueDay);
+        const totalFatura = expenses.filter(e => e.card === card.name && !e.paid && e.date >= p.start && e.date <= p.end).reduce((a, b) => a + b.amount, 0);
+        
+        // Cálculo do Melhor dia de Compra (Geralmente 10 dias antes do vencimento)
+        let melhorDia = card.dueDay - 10;
+        if (melhorDia <= 0) melhorDia += 30;
+
+        const isMelhorDia = currentDay === melhorDia;
+
+        return React.createElement(SCard, { key: card.id, style: { padding: 14, borderLeft: `6px solid ${card.color}` } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+            React.createElement("div", null,
+              React.createElement("div", { style: { ...T.h4, color: C.textPri } }, card.name),
+              React.createElement("div", { style: { ...T.micro, color: C.textMut, marginTop: 2 } }, "Vencimento")
+            ),
+            React.createElement("div", { style: { textAlign: "right" } },
+              React.createElement("div", { style: { ...T.mono, color: C.red, fontSize: 16 } }, fmt(totalFatura)),
+              React.createElement("div", { style: { ...T.micro, color: C.textMut } }, "Previsto")
+            )
+          ),
+          
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` } },
+            React.createElement("div", { style: { flex: 1 } },
+              React.createElement("div", { style: { ...T.micro, color: C.textMut } }, "Próximo Vencimento"),
+              React.createElement("div", { style: { ...T.body, fontWeight: 700, color: card.dueDay < currentDay ? C.red : C.textPri } }, 
+                "Dia ", card.dueDay, " de ", card.dueDay < currentDay ? MONTHS[(today.getMonth() + 1) % 12] : MONTHS[today.getMonth()]
+              )
+            ),
+            React.createElement("div", { style: { flex: 1, textAlign: "right", padding: "6px 10px", borderRadius: 10, background: isMelhorDia ? C.accent + "22" : C.border + "33" } },
+              React.createElement("div", { style: { ...T.micro, color: isMelhorDia ? C.accentD : C.textSec } }, "⭐ Melhor Compra"),
+              React.createElement("div", { style: { ...T.body, fontWeight: 800, color: isMelhorDia ? C.accentD : C.textPri } }, "Dia ", melhorDia)
+            )
+          ),
+          
+          isMelhorDia && React.createElement("div", { style: { marginTop: 10, color: C.accentD, fontSize: 11, fontWeight: 600, textAlign: "center" } }, 
+            "🎉 Hoje é o melhor dia para usar este cartão!"
+          )
+        );
+      })
+    )
+  );
+}
+
+    
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");
@@ -1834,7 +1919,7 @@ function App() {
     } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
       triggerRefresh();
       setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }));
+    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }));
   })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));

@@ -1029,7 +1029,7 @@ function BaixaModal({ userId, creditCard, checkingCards, expenses, onClose, onSa
     }
   ))));
 }
-function CardsScreen({ user, onBack, refresh, onRefresh }) {
+function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);
@@ -1079,7 +1079,6 @@ function CardsScreen({ user, onBack, refresh, onRefresh }) {
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
   const creditCards = cards.filter((c) => !c.isCheckingAccount);
 
-  // NOVO RENDER_CARD ESTILO ITAÚ (Referência: WhatsApp Image 2026-05-13 at 16.52.31.jpeg)
   const renderCard = (card, index, isChecking) => {
     const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);
     const totalPending = cardExp.filter((e) => !e.paid).reduce((a, b) => a + b.amount, 0);
@@ -1142,14 +1141,20 @@ function CardsScreen({ user, onBack, refresh, onRefresh }) {
           )
         ),
 
-        /* BOTÕES DE AÇÃO */
+        /* BOTÕES DE AÇÃO - AJUSTADOS PARA BAIXAR E AGRUPAR */
         React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 24 } },
-          React.createElement("button", { style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14 } }, isChecking ? "Pix" : "Antecipar"),
-          React.createElement("button", { style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14 } }, isChecking ? "Extrato" : "Parcelar")
+          React.createElement("button", { 
+            onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card),
+            style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
+          }, isChecking ? "Novo Saldo" : "Baixar Despesas"),
+          React.createElement("button", { 
+            onClick: () => onNav("agrupar"),
+            style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
+          }, isChecking ? "Extrato" : "Agrupar Despesas")
         )
       ),
 
-      /* LANÇAMENTOS (Referência: WhatsApp Image 2026-05-13 at 16.52.30.jpeg) */
+      /* LANÇAMENTOS */
       cardExp.length > 0 && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, margin: "0 -20px", padding: "20px" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),

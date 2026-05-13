@@ -1803,83 +1803,135 @@ function LimitsScreen({ user, onBack, refresh }) {
 }
 
 function CalendarScreen({ user, onBack, refresh }) {
-  const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Inicia sempre no mês e ano atuais
+  const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date().getDate());
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, e] = await Promise.all([
-      dbByIndex("cards", "userId", user.id),
-      dbByIndex("expenses", "userId", user.id)
-    ]);
-    setCards(c);
-    setExpenses(e.filter(x => !x.paid && !x.isCheckingDebit)); // Apenas o que deve ser pago
+    const e = await dbByIndex("expenses", "userId", user.id);
+    // Filtra apenas despesas pendentes e ignora débitos diretos de conta corrente
+    setExpenses(e.filter(x => !x.paid && !x.isCheckingDebit)); 
     setLoading(false);
   }, [user.id]);
 
   useEffect(() => { load(); }, [load, refresh]);
 
-  const today = new Date();
-  const month = today.getMonth();
-  const year = today.getFullYear();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayNextMonth = new Date(year, month, 1).getDay();
+  const viewMonth = viewDate.getMonth();
+  const viewYear = viewDate.getFullYear();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
 
-  // Agrupar despesas por dia de vencimento
+  // Agrupar despesas pela data exata de vencimento no banco
   const expensesByDay = useMemo(() => {
     const map = {};
     expenses.forEach(e => {
-      const d = parseInt(e.date.slice(8, 10));
-      if (!map[d]) map[d] = [];
-      map[d].push(e);
+      const d = new Date(e.date + "T12:00:00");
+      if (d.getMonth() === viewMonth && d.getFullYear() === viewYear) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(e);
+      }
     });
     return map;
-  }, [expenses]);
+  }, [expenses, viewMonth, viewYear]);
 
   const selectedEntries = expensesByDay[selectedDay] || [];
 
+  const changeMonth = (offset) => {
+    const newDate = new Date(viewYear, viewMonth + offset, 1);
+    setViewDate(newDate);
+    setSelectedDay(1); // Reseta para o dia 1 ao mudar de mês
+  };
+
   return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 90 } },
-    React.createElement(TopBar, { title: "Calendário", onBack }),
+    React.createElement(TopBar, { title: "Agenda de Vencimentos", onBack }),
+
+    // Seletores de Mês/Ano
+    React.createElement("div", { style: { padding: "0 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      React.createElement("button", { onClick: () => changeMonth(-1), style: { background: C.border + "55", border: "none", borderRadius: 8, padding: "8px 12px", color: C.textPri, cursor: "pointer" } }, "‹"),
+      React.createElement("div", { style: { ...T.h3, color: C.textPri, textAlign: "center" } }, 
+        MONTHS[viewMonth], " ", viewYear
+      ),
+      React.createElement("button", { onClick: () => changeMonth(1), style: { background: C.border + "55", border: "none", borderRadius: 8, padding: "8px 12px", color: C.textPri, cursor: "pointer" } }, "›")
+    ),
 
     // Grade do Calendário
-    React.createElement("div", { style: { padding: "10px 20px" } },
+    React.createElement("div", { style: { padding: "0 20px" } },
       React.createElement(SCard, { style: { padding: 12 } },
-        React.createElement("div", { style: { textAlign: "center", ...T.h4, color: C.textPri, marginBottom: 15 } }, 
-          MONTHS[month], " ", year
-        ),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, textAlign: "center" } },
-          ["D", "S", "T", "Q", "Q", "S", "S"].map(d => React.createElement("span", { key: d, style: { ...T.micro, color: C.textMut } }, d)),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, textAlign: "center" } },
+          ["D", "S", "T", "Q", "Q", "S", "S"].map(d => React.createElement("span", { key: d, style: { ...T.micro, color: C.textMut, paddingBottom: 10 } }, d)),
+          
+          // Espaços vazios para alinhar o primeiro dia da semana
+          Array.from({ length: firstDayOfWeek }).map((_, i) => React.createElement("div", { key: "empty-" + i })),
+          
+          // Dias do Mês
           Array.from({ length: daysInMonth }, (_, i) => {
             const day = i + 1;
             const hasExp = expensesByDay[day]?.length > 0;
             const isSelected = selectedDay === day;
-            const isToday = day === today.getDate();
+            const isToday = day === new Date().getDate() && viewMonth === new Date().getMonth() && viewYear === new Date().getFullYear();
 
             return React.createElement("div", {
               key: day,
               onClick: () => setSelectedDay(day),
               style: {
-                height: 40,
+                height: 44,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: 10,
+                borderRadius: 12,
                 cursor: "pointer",
-                background: isSelected ? C.accent : isToday ? C.accent + "22" : "transparent",
+                background: isSelected ? C.accent : isToday ? C.accent + "15" : "transparent",
                 border: isToday ? `1px solid ${C.accent}` : "none",
-                position: "relative"
+                position: "relative",
+                transition: "all 0.2s"
               }
             },
-              React.createElement("span", { style: { fontSize: 14, fontWeight: isSelected || isToday ? 700 : 400, color: isSelected ? "#fff" : C.textPri } }, day),
-              hasExp && !isSelected && React.createElement("div", { style: { width: 4, height: 4, borderRadius: 2, background: C.red, position: "absolute", bottom: 6 } })
+              React.createElement("span", { style: { fontSize: 14, fontWeight: isSelected || isToday ? 700 : 500, color: isSelected ? "#fff" : C.textPri } }, day),
+              hasExp && !isSelected && React.createElement("div", { style: { width: 5, height: 5, borderRadius: 3, background: C.red, position: "absolute", bottom: 6 } })
             );
           })
         )
       )
     ),
+
+    // Listagem de Registros do Dia
+    React.createElement("div", { style: { padding: "20px 20px" } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 12 } },
+        React.createElement("span", { style: { ...T.micro, color: C.textMut } }, "Vencimentos de ", selectedDay, "/", viewMonth + 1),
+        selectedEntries.length > 0 && React.createElement("span", { style: { ...T.micro, color: C.red, fontWeight: 700 } }, "Total: ", fmt(selectedEntries.reduce((a,b) => a+b.amount, 0)))
+      ),
+      
+      loading ? React.createElement(Loader, null) : 
+      selectedEntries.length === 0 ? 
+        React.createElement("div", { style: { textAlign: "center", padding: "40px 0", color: C.textMut, fontSize: 13, background: C.border + "22", borderRadius: 16 } }, 
+           "Nenhuma despesa vence hoje. ✨"
+        ) :
+        selectedEntries.map(e => (
+          React.createElement(SCard, { key: e.id, style: { marginBottom: 10, padding: "12px 16px", borderLeft: `5px solid ${C.red}` } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+              React.createElement("div", { style: { flex: 1 } },
+                React.createElement("div", { style: { ...T.body, fontWeight: 700, color: C.textPri } }, e.desc),
+                React.createElement("div", { style: { ...T.small, color: C.textMut, marginTop: 2 } }, 
+                  e.card ? `💳 ${e.card}` : `🏷️ ${e.category}`,
+                  e.installmentLabel ? ` • Parcela ${e.installmentLabel}` : ""
+                )
+              ),
+              React.createElement("div", { style: { textAlign: "right" } },
+                React.createElement("div", { style: { ...T.mono, color: C.red, fontWeight: 800, fontSize: 15 } }, fmt(e.amount)),
+                React.createElement("div", { style: { fontSize: 9, color: C.yellow, fontWeight: 700, letterSpacing: 0.5 } }, "ABERTO")
+              )
+            )
+          )
+        ))
+    )
+  );
+}
 
     // Detalhes do Dia Selecionado
     React.createElement("div", { style: { padding: "10px 20px" } },

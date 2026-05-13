@@ -1161,19 +1161,19 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
 
   const renderCard = (card, index, isChecking) => {
-    // Filtra despesas do cartão
-    const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);
+    // 1. Filtra despesas vinculadas ao nome deste cartão (ou conta)
+    const cardExp = expenses.filter((e) => e.card === card.name);
     
-    // CONDIÇÃO ADICIONADA: Se for conta corrente, busca as receitas vinculadas
+    // 2. Filtra receitas vinculadas ao ID desta conta corrente específica
     const cardInc = isChecking 
       ? incomes.filter((i) => String(i.checkingCardId) === String(card.id))
       : [];
 
-    // Consolida e ordena os lançamentos por data (mais recentes primeiro)
-    const allEntries = isChecking 
-      ? [...cardExp, ...cardInc.map(i => ({ ...i, isIncome: true }))]
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-      : cardExp;
+    // 3. UNE OS DADOS: Mapeia as receitas para identificar o sinal positivo no visual
+    const allEntries = [
+      ...cardExp.map(e => ({ ...e, isIncome: false })),
+      ...cardInc.map(i => ({ ...i, isIncome: true }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const totalPending = cardExp.filter((e) => !e.paid).reduce((a, b) => a + b.amount, 0);
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
@@ -1223,7 +1223,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
               React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.accent } }, fmt(card.balance || 0))
         ),
 
-        /* BOTÕES DE AÇÃO - FUNCIONAIS */
+        /* BOTÕES DE AÇÃO */
         React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 24 } },
           React.createElement("button", { 
             onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card),
@@ -1237,20 +1237,20 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
         )
       ),
 
-      /* LISTA DE LANÇAMENTOS - MOSTRA RECEITAS SE FOR CONTA CORRENTE */
+      /* LISTA DE LANÇAMENTOS - MOSTRA RECEITAS E DESPESAS */
       allEntries.length > 0 && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, margin: "0 -20px", padding: "20px" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),
           React.createElement("span", { style: { color: "#FF6200", fontWeight: 700, fontSize: 14 } }, "⇅ Filtros")
         ),
-        allEntries.slice(0, 8).map((e) => React.createElement("div", { key: e.id, style: { marginBottom: 24 } },
+        allEntries.slice(0, 10).map((e) => React.createElement("div", { key: e.id, style: { marginBottom: 24 } },
           React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.textPri, marginBottom: 8 } }, 
             new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
           ),
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
             React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
               React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, e.desc),
-              React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2 } }, e.isIncome ? "Entrada na conta" : "Cartão físico")
+              React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2 } }, e.isIncome ? "Entrada na conta" : (e.paid ? "Pago" : "Pendente"))
             ),
             React.createElement("div", { style: { fontWeight: 700, color: e.isIncome ? C.accent : (e.paid ? C.accent : C.textPri), fontSize: 14, flexShrink: 0 } }, (e.isIncome ? "+" : "-") + fmt(e.amount))
           )
@@ -1266,7 +1266,6 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     }),
 
     loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
-      /* CARROSSEL INDICATOR */
       cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),

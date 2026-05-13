@@ -1095,8 +1095,8 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             React.createElement("div", { style: { fontSize: 12, opacity: 0.9, marginTop: 4 } }, isChecking ? "Conta Corrente" : `Crédito final ${card.last4 || "0000"}`)
           ),
           React.createElement("div", { style: { display: "flex", gap: 10 } },
-            React.createElement("button", { onClick: () => setModal(card), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF" } }, "✎"),
-            React.createElement("button", { onClick: () => handleDeleteCard(card.id), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF" } }, "🗑")
+            React.createElement("button", { onClick: () => setModal(card), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF", cursor: 'pointer' } }, "✎"),
+            React.createElement("button", { onClick: () => handleDeleteCard(card.id), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF", cursor: 'pointer' } }, "🗑")
           )
         ),
         React.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
@@ -1133,7 +1133,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
           }, isChecking ? "Novo Saldo" : "Baixar Despesas"),
           
           React.createElement("button", { 
-            onClick: () => onNav("agrupar"), // <--- Aciona a função da tela agrupar
+            onClick: () => onNav({ name: "agrupar", cardName: card.name }), 
             style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
           }, isChecking ? "Extrato" : "Agrupar Despesas")
         )
@@ -1150,11 +1150,11 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
           ),
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-            React.createElement("div", null,
-              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14 } }, e.desc),
+            React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
+              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, e.desc),
               React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2 } }, "Cartão físico")
             ),
-            React.createElement("div", { style: { fontWeight: 700, color: e.paid ? C.accent : C.textPri, fontSize: 14 } }, (e.paid ? "" : "-") + fmt(e.amount))
+            React.createElement("div", { style: { fontWeight: 700, color: e.paid ? C.accent : C.textPri, fontSize: 14, flexShrink: 0 } }, (e.paid ? "" : "-") + fmt(e.amount))
           )
         ))
       )
@@ -1164,15 +1164,21 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, { 
       title: "Cartões", onBack,
-      action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14 } }, "+ Novo")
+      action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "+ Novo")
     }),
 
     loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+      /* CARROSSEL INDICATOR */
       cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),
       React.createElement("div", { 
-        onScroll: (e) => setCurrentIndex(Math.round(e.target.scrollLeft / e.target.offsetWidth)),
+        onScroll: (e) => {
+           const container = e.target;
+           const width = container.offsetWidth;
+           const index = Math.round(container.scrollLeft / width);
+           if(index !== currentIndex) setCurrentIndex(index);
+        },
         style: { display: "flex", overflowX: "auto", snapType: "x mandatory", scrollBehavior: "smooth", gap: 20, margin: "0 -5px", padding: "5px" }, className: "no-scrollbar"
       },
         cards.length === 0 ? React.createElement("div", { style: { textAlign: 'center', width: '100%', padding: 40, color: C.textMut } }, "Nenhum cartão cadastrado") :
@@ -2181,10 +2187,16 @@ function App() {
     } }), sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
       triggerRefresh();
       setScreen("history-income");
-    } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+    } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
       triggerRefresh();
       setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "agrupar" && /* @__PURE__ */ React.createElement(AgruparScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, refresh }));
+    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "agrupar" && /* @__PURE__ */ React.createElement(AgruparScreen, { 
+      user, 
+      onBack: () => setScreen("cards"), 
+      onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, 
+      refresh,
+      inicialCard: typeof screen === "object" ? screen.cardName : "Todos" 
+    }));
   })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));

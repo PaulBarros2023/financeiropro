@@ -2325,12 +2325,15 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
         const showDate = i === 0 || item.date !== sorted[i-1].date;
 
         return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
+          /* Divisor de Data */
           showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
             new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
           ),
 
+          /* Item da Lista */
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #F8F8F8" } },
             React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
+              // Ícone Circular
               React.createElement("div", { 
                 style: { 
                   width: 40, height: 40, borderRadius: 20, 
@@ -2339,14 +2342,20 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
                 } 
               }, isRec ? "💰" : item.paid ? (catIcon[item.category] || "💸") : "⏳"),
               
+              // Textos
               React.createElement("div", { style: { flex: 1 } },
                 React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
                 React.createElement("div", { style: { fontSize: 12, color: "#999", marginTop: 2 } }, 
                   `${item.category}${!isRec && item.card ? " • " + item.card : ""}`
+                ),
+                /* LABEL DA CONTA QUE PAGOU */
+                !isRec && item.paid && item.paidFromCard && React.createElement("div", { style: { fontSize: 10, color: "#059669", fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 } }, 
+                  React.createElement("span", null, "🏦"), item.paidFromCard
                 )
               )
             ),
 
+            // Valores e Ações
             React.createElement("div", { style: { textAlign: "right" } },
               React.createElement("div", { style: { fontWeight: 800, color: isRec ? "#059669" : "#000", fontSize: 14 } }, 
                 `${isRec ? "+" : "-"} ${fmt(item.amount)}`
@@ -2354,7 +2363,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
               React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 } },
                 !isRec && !item.paid && React.createElement(React.Fragment, null,
                   React.createElement("button", { 
-                    onClick: () => setBaixaParcialExp(item), // NOVO BOTAO
+                    onClick: () => setBaixaParcialExp(item),
                     style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } 
                   }, "PARCIAL"),
                   React.createElement("button", { 

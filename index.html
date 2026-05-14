@@ -638,16 +638,6 @@ function LoginScreen({ onLogin }) {
 }
 
  
-// --- CONFIGURAÇÕES E ESTILOS GLOBAIS ---
-const LS_DARK_KEY = "financaspro_dark";
-const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const catIcon = { Alimentação: "🛒", Transporte: "🚗", Moradia: "🏠", Saúde: "💊", Lazer: "🎬", Educação: "📚", Outros: "💡", Salário: "💼", Freelance: "💻", Investimentos: "📈", Aluguel: "🏘️" };
-const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
-
-const THEMES = {
-  light: { bg: "#F4F7F9", surface: "#FFFFFF", border: "#E2E8F0", accent: "#059669", blue: "#32336e", red: "#EF4444", yellow: "#F59E0B", textPri: "#000000", textSec: "#666666" },
-  dark: { bg: "#0A0A0F", surface: "#12121A", border: "#2A2A3A", accent: "#10B981", blue: "#3b82f6", red: "#F87171", yellow: "#FBBF24", textPri: "#FFFFFF", textSec: "#94A3B8" }
-};
 
 // --- COMPONENTE: DASHBOARD SCREEN (ESTILO ITAÚ) ---
 function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {

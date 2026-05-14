@@ -1329,8 +1329,11 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       key: card.id, 
       style: { 
         minWidth: "100%", 
-        snapAlign: "center", // TRAVA: Faz o cartão centralizar ao soltar o dedo
-        padding: "0 5px" // Espaçamento leve para não colar nas bordas
+        flexShrink: 0, // Garante que o item não encolha e mantenha 100% da largura
+        scrollSnapAlign: "center", // TRAVA: Ponto exato de encaixe
+        scrollSnapStop: "always", // Força a parada em cada item
+        padding: "0 10px", // Espaçamento lateral interno para o cartão não colar na borda da tela
+        boxSizing: "border-box"
       } 
     },
       /* VISUAL DO CARTÃO */
@@ -1399,45 +1402,38 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "+ Novo")
     }),
 
-    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0" } },
       /* CARROSSEL INDICATOR */
       cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),
       
-      /* CONTAINER DO CARROSSEL COM TRAVA */
+      /* CONTAINER DO CARROSSEL COM TRAVA REFORÇADA */
       React.createElement("div", { 
         onScroll: (e) => {
            const container = e.target;
            const width = container.offsetWidth;
            const index = Math.round(container.scrollLeft / width);
-           if(index !== currentIndex) setCurrentIndex(index);
+           if(index !== currentIndex && index >= 0 && index < cards.length) setCurrentIndex(index);
         },
         style: { 
           display: "flex", 
           overflowX: "auto", 
-          snapType: "x mandatory", // TRAVA: Habilita o sistema de encaixe no eixo X
+          scrollSnapType: "x mandatory", // Habilita a trava obrigatória no eixo X
           scrollBehavior: "smooth", 
-          WebkitOverflowScrolling: "touch", // Suavidade no iOS
-          gap: 0, // Removido gap para o cálculo de largura ser exato 100%
-          margin: "0 -20px", 
-          padding: "0 20px" 
+          WebkitOverflowScrolling: "touch", 
+          gap: 0, 
+          padding: "0", 
+          width: "100%"
         }, 
         className: "no-scrollbar"
       },
         cards.length === 0 ? React.createElement("div", { style: { textAlign: 'center', width: '100%', padding: 40, color: C.textMut } }, "Nenhum cartão cadastrado") :
-        cards.map((c, i) => React.createElement("div", { 
-          style: { 
-            minWidth: "100%", 
-            snapAlign: "center", // TRAVA: Ponto de parada obrigatório do item
-            snapStop: "always" // Opcional: força a parada mesmo em scrolls rápidos
-          }, 
-          key: c.id 
-        }, renderCard(c, i, c.isCheckingAccount)))
+        cards.map((c, i) => renderCard(c, i, c.isCheckingAccount))
       )
     ),
 
-    /* LISTA DE LANÇAMENTOS - MOSTRADA FORA DO CARROSSEL PARA O CARTÃO ATUAL */
+    /* LISTA DE LANÇAMENTOS - DINÂMICA PELO CARTÃO VISÍVEL */
     !loading && cards.length > 0 && (() => {
       const card = cards[currentIndex];
       const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);

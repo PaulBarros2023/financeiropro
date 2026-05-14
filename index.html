@@ -1088,16 +1088,19 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Forçamos a busca garantindo que o userId seja EXATO para evitar somas de outros testes
       const [i, e, c] = await Promise.all([
         dbByIndex("incomes", "userId", user.id),
         dbByIndex("expenses", "userId", user.id),
         dbByIndex("cards", "userId", user.id)
       ]);
-      setIncomes(i);
-      setExpenses(e);
-      setCards(c.filter(x => x.isCheckingAccount));
+
+      // FILTRO DE SEGURANÇA: Removemos qualquer item que possa ter vindo sem ID ou corrompido
+      setIncomes(i.filter(item => item && item.userId === user.id));
+      setExpenses(e.filter(item => item && item.userId === user.id));
+      setCards(c.filter(x => x.isCheckingAccount && x.userId === user.id));
     } catch (err) {
-      console.error("Erro ao carregar histórico:", err);
+      console.error("Erro crítico no banco:", err);
     }
     setLoading(false);
   }, [user.id]);
@@ -1105,39 +1108,33 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   useEffect(() => { load(); }, [load, refresh]);
 
   const handleDelete = async (id, type) => {
-    if (!confirm("Excluir este lançamento permanentemente?")) return;
+    if (!confirm("Excluir permanentemente?")) return;
     const store = type === 'inc' ? "incomes" : "expenses";
+    
+    // Deleta e aguarda a confirmação do banco antes de recarregar
     await dbDelete(store, id);
     await logAction(user.id, type === 'inc' ? "income" : "expense", "delete", { id });
-    load(); // Recarrega os dados do banco
+    
+    // Recarga forçada
+    load();
     if (onRefresh) onRefresh();
   };
 
-  // --- CÁLCULOS BLINDADOS COM USEMEMO ---
-  // Isso garante que o Total Pago NÃO some itens excluídos ou fora do filtro
-  const { totalInc, totalExp, unified, months } = useMemo(() => {
+  // CÁLCULO MEMORIZADO (Blindagem contra dados fantasmas)
+  const data = useMemo(() => {
     const selectedCardObj = cards.find(c => String(c.id) === String(selCard));
 
-    // 1. Filtro de Receitas
-    const fInc = incomes.filter((i) => {
-      const matchMonth = selMonth === 0 || i.month === selMonth;
-      const matchCard = selCard === "Todos" || 
-                       String(i.checkingCardId) === String(selCard) || 
-                       i.checkingCardName === selectedCardObj?.name;
-      return matchMonth && matchCard;
-    });
+    const fInc = incomes.filter(i => 
+      (selMonth === 0 || i.month === selMonth) && 
+      (selCard === "Todos" || String(i.checkingCardId) === String(selCard))
+    );
 
-    // 2. Filtro de Despesas (Saídas)
-    const fExp = expenses.filter((e) => {
-      const matchMonth = selMonth === 0 || e.month === selMonth;
-      const matchCard = selCard === "Todos" || 
-                       e.card === selectedCardObj?.name || 
-                       e.paidFromCard === selectedCardObj?.name;
-      return matchMonth && matchCard;
-    });
+    const fExp = expenses.filter(e => 
+      (selMonth === 0 || e.month === selMonth) && 
+      (selCard === "Todos" || e.card === selectedCardObj?.name || e.paidFromCard === selectedCardObj?.name)
+    );
 
-    // 3. Lista Unificada e Ordenada
-    const list = [
+    const unifiedList = [
       ...fInc.map(i => ({ ...i, _type: 'inc' })),
       ...fExp.map(e => ({ ...e, _type: 'exp' }))
     ].sort((a, b) => {
@@ -1145,29 +1142,26 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
       return new Date(b.date) - new Date(a.date);
     });
 
-    // 4. Lista de meses disponíveis
-    const mList = [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a);
-
     return {
-      totalInc: fInc.reduce((a, b) => a + b.amount, 0),
-      totalExp: fExp.reduce((a, b) => a + b.amount, 0),
-      unified: list,
-      months: mList
+      totalInc: fInc.reduce((a, b) => a + (Number(b.amount) || 0), 0),
+      totalExp: fExp.reduce((a, b) => a + (Number(b.amount) || 0), 0),
+      list: unifiedList,
+      availableMonths: [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a)
     };
   }, [incomes, expenses, cards, selMonth, selCard, sortBy]);
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
-    React.createElement(TopBar, { title: "Histórico", onBack }),
+    React.createElement(TopBar, { title: "Histórico Real", onBack }),
     
-    /* FILTRO DE MÊS ITAÚ (Mês/Valor) */
+    /* SELETOR DE MÊS ESTILO ITAÚ */
     React.createElement("div", { 
       style: { display: "flex", gap: 20, overflowX: "auto", padding: "15px 20px", borderBottom: "1px solid #F0F0F0" },
       className: "no-scrollbar"
     },
-      months.map(m => {
+      data.availableMonths.map(m => {
         const isActive = selMonth === m;
-        const mInc = incomes.filter(i => i.month === m).reduce((a, b) => a + b.amount, 0);
-        const mExp = expenses.filter(e => e.month === m).reduce((a, b) => a + b.amount, 0);
+        const mInc = incomes.filter(i => i.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0);
+        const mExp = expenses.filter(e => e.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0);
         return React.createElement("div", { 
           key: m, onClick: () => setSelMonth(m),
           style: { display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80, cursor: "pointer", borderBottom: isActive ? "3px solid #32336e" : "3px solid transparent", paddingBottom: 8 } 
@@ -1178,22 +1172,22 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
       })
     ),
 
-    /* FILTRO DE CONTAS (CHIPS) */
+    /* FILTRO DE CONTAS */
     cards.length > 0 && React.createElement("div", { style: { padding: "10px 20px 5px", display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
       React.createElement(Chip, { label: "Todas Contas", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#FF6200" }),
       cards.map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === String(c.id), onClick: () => setSelCard(String(c.id)), color: "#FF6200" }))
     ),
 
-    /* RESUMO FINANCEIRO ATUALIZADO */
+    /* RESUMO FINANCEIRO (Soma Limpa) */
     React.createElement("div", { style: { padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: 'flex', gap: 15 } },
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "ENTRADAS"),
-          React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#059669" } }, "+ " + fmt(totalInc))
+          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "ENTRADAS"),
+          React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#059669" } }, "+ " + fmt(data.totalInc))
         ),
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "SAÍDAS"),
-          React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#000" } }, "- " + fmt(totalExp))
+          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "SAÍDAS"),
+          React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#000" } }, "- " + fmt(data.totalExp))
         )
       ),
       React.createElement("select", { 
@@ -1207,10 +1201,10 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
 
     loading ? React.createElement(Loader, null) : 
     React.createElement("div", { style: { padding: "0 20px" } },
-      unified.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento encontrado") :
-      unified.map((item, idx) => {
+      data.list.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento encontrado") :
+      data.list.map((item, idx) => {
         const isInc = item._type === 'inc';
-        const showDate = idx === 0 || item.date !== unified[idx-1].date;
+        const showDate = idx === 0 || item.date !== data.list[idx-1].date;
         
         return React.createElement("div", { key: item.id + item._type, style: { marginBottom: 20 } },
           showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 12, marginTop: idx > 0 ? 10 : 0 } }, 

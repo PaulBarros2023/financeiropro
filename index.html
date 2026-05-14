@@ -2706,15 +2706,27 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
   );
 }
     
-const navItems = [
-  { id: "dashboard", icon: "\u229E", label: "Início" },
-  { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" },
+//const navItems = [
+  //{ id: "dashboard", icon: "\u229E", label: "Início" },
+ // { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" },
   //{ id: "history-expense", icon: "\u2193", label: "Despesas" },//
   //{ id: "history-income", icon: "\u2191", label: "Receitas" },//
-  { id: "extract", icon: "\u{1F4CB}", label: "Extrato" },
-  { id: "checking-account", icon: "\u{1F3E6}", label: "Contas" }, // Adicionado
-  { id: "cards", icon: "\u25A3", label: "Cartões" },
-  { id: "limits", icon: "\u{1F4CA}", label: "Limites" }
+ // { id: "extract", icon: "\u{1F4CB}", label: "Extrato" },
+//  { id: "checking-account", icon: "\u{1F3E6}", label: "Contas" }, // Adicionado
+//  { id: "cards", icon: "\u25A3", label: "Cartões" },
+ // { id: "limits", icon: "\u{1F4CA}", label: "Limites" }
+];//
+
+
+const navItems = [
+  { id: "dashboard", icon: React.createElement("img", { src: "dashboard.png", style: { width: 20, height: 20 } }), label: "Início" },
+  { id: "calendar", icon: React.createElement("img", { src: "calendario.png", style: { width: 20, height: 20 } }), label: "Agenda" },
+  //{ id: "history-expense", icon: "\u2193", label: "Despesas" },//
+  //{ id: "history-income", icon: "\u2191", label: "Receitas" },//
+  { id: "extract", icon: React.createElement("img", { src: "Frame 25.png", style: { width: 20, height: 20 } }), label: "Extrato" },
+  { id: "checking-account", icon: React.createElement("img", { src: "receita.png", style: { width: 20, height: 20 } }), label: "Contas" },
+  { id: "cards", icon: React.createElement("img", { src: "cartao.png", style: { width: 20, height: 20 } }), label: "Cartões" },
+  { id: "limits", icon: React.createElement("img", { src: "limites.png", style: { width: 20, height: 20 } }), label: "Limites" }
 ];
 
 function BottomNav({ active, onNav }) {
@@ -2728,29 +2740,48 @@ function BottomNav({ active, onNav }) {
       display: "flex", paddingBottom: "env(safe-area-inset-bottom, 10px)", 
       paddingTop: "8px", zIndex: 1000, 
       boxShadow: "0 -4px 12px rgba(0,0,0,0.05)",
-      overflowX: "auto", // Importante: permite deslizar se não couber
+      overflowX: "auto", 
       WebkitOverflowScrolling: "touch" 
     },
     className: "no-scrollbar"
   }, navItems.map((n) => {
     const isActive = screenName === n.id || 
                      (["add-expense", "edit-expense"].includes(screenName) && n.id === "history-expense") || 
-                     (["add-income", "edit-income"].includes(screenName) && n.id === "history-income");
+                     (["add-income", "edit-income"].includes(screenName) && n.id === "history-income") ||
+                     (screenName === "extract" && n.id === "extract");
     
     return React.createElement("button", { 
       key: n.id, 
       onClick: () => onNav(n.id), 
       style: { 
-        flex: "0 0 72px", // Fixa a largura para o scroll funcionar bem
+        flex: "0 0 72px", 
         background: "none", border: "none", cursor: "pointer", 
         display: "flex", flexDirection: "column", alignItems: "center", gap: 4 
       } 
     }, 
-      React.createElement("span", { 
-        style: { fontSize: 20, color: isActive ? "#FF6200" : "#94A3B8" } 
+      // Container do Ícone (Imagem)
+      React.createElement("div", { 
+        style: { 
+          width: 24, 
+          height: 24, 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center",
+          // Se não estiver ativo, a imagem fica cinza. Se ativo, cor original.
+          filter: isActive ? "none" : "grayscale(100%)",
+          opacity: isActive ? 1 : 0.6,
+          transition: "all 0.2s"
+        } 
       }, n.icon), 
+      
+      // Label do Menu
       React.createElement("span", { 
-        style: { fontSize: 10, color: isActive ? "#000" : "#94A3B8", fontWeight: isActive ? 700 : 500 } 
+        style: { 
+          fontSize: 10, 
+          color: isActive ? "#FF6200" : "#94A3B8", 
+          fontWeight: isActive ? 700 : 500,
+          transition: "color 0.2s"
+        } 
       }, n.label)
     );
   }));

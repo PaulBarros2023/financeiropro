@@ -1079,10 +1079,10 @@ function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
 function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [cards, setCards] = useState([]); // Adicionado para carregar as contas
+  const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selMonth, setSelMonth] = useState(new Date().getMonth() + 1);
-  const [selCard, setSelCard] = useState("Todos");
+  const [selCard, setSelCard] = useState("Todos"); // ID da conta selecionada
   const [sortBy, setSortBy] = useState("date");
 
   const load = useCallback(async () => {
@@ -1094,7 +1094,7 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
     ]);
     setIncomes(i);
     setExpenses(e);
-    setCards(c.filter(x => x.isCheckingAccount)); // Filtra apenas contas correntes
+    setCards(c.filter(x => x.isCheckingAccount));
     setLoading(false);
   }, [user.id]);
 
@@ -1109,18 +1109,29 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
     if (onRefresh) onRefresh();
   };
 
-  // Consolidação de Meses com Valores (Estilo Itaú)
   const months = [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a);
 
-  // Filtragem
-  const filteredInc = incomes.filter((i) => 
-    (selMonth === 0 || i.month === selMonth) && 
-    (selCard === "Todos" || String(i.checkingCardId) === String(selCard))
-  );
-  const filteredExp = expenses.filter((e) => 
-    (selMonth === 0 || e.month === selMonth) && 
-    (selCard === "Todos" || e.card === cards.find(c => String(c.id) === String(selCard))?.name)
-  );
+  // --- LÓGICA DE FILTRAGEM CORRIGIDA ---
+  
+  // Encontra o objeto da conta selecionada para pegar o Nome e o ID
+  const selectedCardObj = cards.find(c => String(c.id) === String(selCard));
+
+  const filteredInc = incomes.filter((i) => {
+    const matchMonth = selMonth === 0 || i.month === selMonth;
+    const matchCard = selCard === "Todos" || 
+                     String(i.checkingCardId) === String(selCard) || 
+                     i.checkingCardName === selectedCardObj?.name;
+    return matchMonth && matchCard;
+  });
+
+  const filteredExp = expenses.filter((e) => {
+    const matchMonth = selMonth === 0 || e.month === selMonth;
+    // Despesas geralmente filtram pelo nome do cartão ou campo paidFromCard
+    const matchCard = selCard === "Todos" || 
+                     e.card === selectedCardObj?.name || 
+                     e.paidFromCard === selectedCardObj?.name;
+    return matchMonth && matchCard;
+  });
 
   const unified = [
     ...filteredInc.map(i => ({ ...i, _type: 'inc' })),
@@ -1136,33 +1147,26 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, { title: "Histórico", onBack }),
     
-    /* FILTRO DE MÊS ESTILO ITAÚ (Mês em cima, Valor embaixo) */
+    /* FILTRO DE MÊS ITAÚ */
     React.createElement("div", { 
       style: { display: "flex", gap: 20, overflowX: "auto", padding: "15px 20px", borderBottom: "1px solid #F0F0F0" },
       className: "no-scrollbar"
     },
       months.map(m => {
         const isActive = selMonth === m;
-        // Calcula saldo do mês específico para o filtro
         const mInc = incomes.filter(i => i.month === m).reduce((a, b) => a + b.amount, 0);
         const mExp = expenses.filter(e => e.month === m).reduce((a, b) => a + b.amount, 0);
-        const mSaldo = mInc - mExp;
-
         return React.createElement("div", { 
-          key: m, 
-          onClick: () => setSelMonth(m),
-          style: { 
-            display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80, cursor: "pointer",
-            borderBottom: isActive ? "3px solid #32336e" : "3px solid transparent", paddingBottom: 8
-          } 
+          key: m, onClick: () => setSelMonth(m),
+          style: { display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80, cursor: "pointer", borderBottom: isActive ? "3px solid #32336e" : "3px solid transparent", paddingBottom: 8 } 
         },
           React.createElement("span", { style: { fontSize: 13, color: isActive ? "#32336e" : "#999", fontWeight: isActive ? 700 : 500 } }, MONTHS[m - 1]),
-          React.createElement("span", { style: { fontSize: 11, color: isActive ? "#32336e" : "#CCC", fontWeight: 600, marginTop: 4 } }, fmt(mSaldo).replace("R$", ""))
+          React.createElement("span", { style: { fontSize: 11, color: isActive ? "#32336e" : "#CCC", fontWeight: 600, marginTop: 4 } }, fmt(mInc - mExp).replace("R$", ""))
         );
       })
     ),
 
-    /* FILTRO DE CONTAS CORRENTES (CHIPS) */
+    /* FILTRO DE CONTAS (CHIPS) */
     cards.length > 0 && React.createElement("div", { style: { padding: "10px 20px 5px", display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
       React.createElement(Chip, { 
         label: "Todas Contas", 
@@ -1179,21 +1183,20 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
       }))
     ),
 
-    /* RESUMO FINANCEIRO */
+    /* RESUMO */
     React.createElement("div", { style: { padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: 'flex', gap: 15 } },
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "Recebido"),
+          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "ENTRADAS"),
           React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#059669" } }, "+ " + fmt(totalInc))
         ),
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "Pago"),
+          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "SAÍDAS"),
           React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#000" } }, "- " + fmt(totalExp))
         )
       ),
       React.createElement("select", { 
-        value: sortBy, 
-        onChange: (e) => setSortBy(e.target.value), 
+        value: sortBy, onChange: (e) => setSortBy(e.target.value), 
         style: { border: "none", background: "none", color: "#FF6200", fontWeight: 700, fontSize: 13 } 
       },
         React.createElement("option", { value: "date" }, "data"),
@@ -1203,35 +1206,35 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
 
     loading ? React.createElement(Loader, null) : 
     React.createElement("div", { style: { padding: "0 20px" } },
-      unified.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento no período") :
+      unified.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento") :
       unified.map((item, idx) => {
         const isInc = item._type === 'inc';
         const showDate = idx === 0 || item.date !== unified[idx-1].date;
         
         return React.createElement("div", { key: item.id + item._type, style: { marginBottom: 20 } },
-          showDate && React.createElement("div", { 
-            style: { fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 12, marginTop: idx > 0 ? 10 : 0 } 
-          }, new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })),
+          showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 12, marginTop: idx > 0 ? 10 : 0 } }, 
+            new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+          ),
 
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
             React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
-              React.createElement("div", { 
-                style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } 
-              }, catIcon[item.category] || (isInc ? "💰" : "💸")),
+              React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, 
+                catIcon[item.category] || (isInc ? "💰" : "💸")
+              ),
               React.createElement("div", { style: { flex: 1 } },
                 React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginTop: 2 } },
                    React.createElement("span", { style: { fontSize: 12, color: "#666" } }, isInc ? "Receita" : item.card || "Débito"),
-                   !isInc && React.createElement("span", { 
-                     style: { fontSize: 9, fontWeight: 800, color: item.paid ? "#059669" : "#EF4444", background: (item.paid ? "#059669" : "#EF4444") + "15", padding: "2px 6px", borderRadius: 4 } 
-                   }, item.paid ? "PAGO" : "PENDENTE")
+                   React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: isInc ? "#059669" : (item.paid ? "#32336e" : "#EF4444"), background: (isInc ? "#059669" : (item.paid ? "#32336e" : "#EF4444")) + "15", padding: "2px 6px", borderRadius: 4 } }, 
+                     isInc ? "RECEBIDO" : (item.paid ? "PAGO" : "PENDENTE")
+                   )
                 )
               )
             ),
             React.createElement("div", { style: { textAlign: "right", marginLeft: 10 } },
               React.createElement("div", { style: { fontWeight: 700, color: isInc ? "#059669" : "#000", fontSize: 14 } }, (isInc ? "+ " : "- ") + fmt(item.amount)),
               React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 } },
-                isInc && React.createElement("button", { onClick: () => onEditInc(item), style: { border: 'none', background: 'none', color: '#FF6200', fontSize: 12, fontWeight: 700 } }, "editar"),
+                isInc && onEditInc && React.createElement("button", { onClick: () => onEditInc(item), style: { border: 'none', background: 'none', color: '#FF6200', fontSize: 12, fontWeight: 700 } }, "editar"),
                 React.createElement("button", { onClick: () => handleDelete(item.id, item._type), style: { background: "none", border: "none", color: "#DDD", fontSize: 14 } }, "🗑")
               )
             )
@@ -1242,7 +1245,6 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
     )
   );
 }
-
     
 function BaixaModal({ userId, creditCard, checkingCards, expenses, onClose, onSaved }) {
   const [selChecking, setSelChecking] = useState(checkingCards[0]?.id || null);

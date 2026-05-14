@@ -1283,6 +1283,13 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [baixaCard, setBaixaCard] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // Mapeamento das imagens enviadas
+  const flagIcons = {
+    "Mastercard": "mastecard.png",
+    "Visa": "visa.png",
+    "Outros": "outros.png"
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     const [c, e, i] = await Promise.all([
@@ -1324,15 +1331,18 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);
     const totalPending = cardExp.filter((e) => !e.paid).reduce((a, b) => a + b.amount, 0);
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
+    
+    // Define qual ícone de bandeira usar
+    const flagImg = flagIcons[card.flag] || flagIcons["Outros"];
 
     return React.createElement("div", { 
       key: card.id, 
       style: { 
         minWidth: "100%", 
-        flexShrink: 0, // Garante que o item não encolha e mantenha 100% da largura
-        scrollSnapAlign: "center", // TRAVA: Ponto exato de encaixe
-        scrollSnapStop: "always", // Força a parada em cada item
-        padding: "0 10px", // Espaçamento lateral interno para o cartão não colar na borda da tela
+        flexShrink: 0,
+        scrollSnapAlign: "center", 
+        scrollSnapStop: "always",
+        padding: "0 10px",
         boxSizing: "border-box"
       } 
     },
@@ -1341,12 +1351,13 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
         style: { 
           background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`, 
           height: 180, borderRadius: 20, padding: 24, color: "#FFF", position: "relative",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", justifyContent: "space-between"
+          boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", justifyContent: "space-between",
+          overflow: 'hidden'
         } 
       },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 2 } },
           React.createElement("div", null,
-            React.createElement("div", { style: { fontSize: 16, fontWeight: 700 } }, card.name),
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.2)' } }, card.name),
             React.createElement("div", { style: { fontSize: 12, opacity: 0.9, marginTop: 4 } }, isChecking ? "Conta Corrente" : `Crédito final ${card.last4 || "0000"}`)
           ),
           React.createElement("div", { style: { display: "flex", gap: 10 } },
@@ -1354,12 +1365,24 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             React.createElement("button", { onClick: () => handleDeleteCard(card.id), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF", cursor: 'pointer' } }, "🗑")
           )
         ),
-        React.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
-          React.createElement("div", { style: { width: 40, height: 25, background: "rgba(255,255,255,0.3)", borderRadius: 4 } })
+
+        /* CHIP E BANDEIRA */
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", zIndex: 2 } },
+          /* Ícone de Chip Simbolizado */
+          React.createElement("div", { style: { width: 42, height: 30, background: "rgba(255,255,255,0.25)", borderRadius: 6, position: 'relative' } },
+            React.createElement("div", { style: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '70%', height: '1px', background: 'rgba(255,255,255,0.3)' } }),
+            React.createElement("div", { style: { position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)', width: '1px', height: '40%', background: 'rgba(255,255,255,0.3)' } })
+          ),
+          /* BANDEIRA DO CARTÃO (IMAGE) */
+          React.createElement("img", { 
+            src: flagImg, 
+            style: { height: 35, width: 'auto', objectFit: 'contain' },
+            alt: card.flag 
+          })
         )
       ),
 
-      /* RESUMO FINANCEIRO */
+      /* RESUMO FINANCEIRO (Mesmo código anterior) */
       React.createElement("div", { style: { padding: "24px 4px" } },
         !isChecking ? React.createElement(React.Fragment, null,
           React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
@@ -1408,7 +1431,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),
       
-      /* CONTAINER DO CARROSSEL COM TRAVA REFORÇADA */
+      /* CONTAINER DO CARROSSEL COM TRAVA */
       React.createElement("div", { 
         onScroll: (e) => {
            const container = e.target;
@@ -1419,7 +1442,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
         style: { 
           display: "flex", 
           overflowX: "auto", 
-          scrollSnapType: "x mandatory", // Habilita a trava obrigatória no eixo X
+          scrollSnapType: "x mandatory", 
           scrollBehavior: "smooth", 
           WebkitOverflowScrolling: "touch", 
           gap: 0, 
@@ -1433,7 +1456,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       )
     ),
 
-    /* LISTA DE LANÇAMENTOS - DINÂMICA PELO CARTÃO VISÍVEL */
+    /* LISTA DE LANÇAMENTOS - DINÂMICA */
     !loading && cards.length > 0 && (() => {
       const card = cards[currentIndex];
       const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);

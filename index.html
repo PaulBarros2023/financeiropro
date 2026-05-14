@@ -1325,7 +1325,14 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     const totalPending = cardExp.filter((e) => !e.paid).reduce((a, b) => a + b.amount, 0);
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
 
-    return React.createElement("div", { key: card.id, style: { minWidth: "100%", transition: "all 0.4s ease" } },
+    return React.createElement("div", { 
+      key: card.id, 
+      style: { 
+        minWidth: "100%", 
+        snapAlign: "center", // TRAVA: Faz o cartão centralizar ao soltar o dedo
+        padding: "0 5px" // Espaçamento leve para não colar nas bordas
+      } 
+    },
       /* VISUAL DO CARTÃO */
       React.createElement("div", { 
         style: { 
@@ -1370,7 +1377,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
               React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.accent } }, fmt(card.balance || 0))
         ),
 
-        /* BOTÕES DE AÇÃO - FUNCIONAIS */
+        /* BOTÕES DE AÇÃO */
         React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 24 } },
           React.createElement("button", { 
             onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card),
@@ -1382,10 +1389,61 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
           }, isChecking ? "Extrato" : "Agrupar Despesas")
         )
-      ),
+      )
+    );
+  };
 
-      /* LISTA DE LANÇAMENTOS ESTILO ITAÚ */
-      cardExp.length > 0 && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, margin: "0 -20px", padding: "20px" } },
+  return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
+    React.createElement(TopBar, { 
+      title: "Cartões", onBack,
+      action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "+ Novo")
+    }),
+
+    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
+      /* CARROSSEL INDICATOR */
+      cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
+        cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
+      ),
+      
+      /* CONTAINER DO CARROSSEL COM TRAVA */
+      React.createElement("div", { 
+        onScroll: (e) => {
+           const container = e.target;
+           const width = container.offsetWidth;
+           const index = Math.round(container.scrollLeft / width);
+           if(index !== currentIndex) setCurrentIndex(index);
+        },
+        style: { 
+          display: "flex", 
+          overflowX: "auto", 
+          snapType: "x mandatory", // TRAVA: Habilita o sistema de encaixe no eixo X
+          scrollBehavior: "smooth", 
+          WebkitOverflowScrolling: "touch", // Suavidade no iOS
+          gap: 0, // Removido gap para o cálculo de largura ser exato 100%
+          margin: "0 -20px", 
+          padding: "0 20px" 
+        }, 
+        className: "no-scrollbar"
+      },
+        cards.length === 0 ? React.createElement("div", { style: { textAlign: 'center', width: '100%', padding: 40, color: C.textMut } }, "Nenhum cartão cadastrado") :
+        cards.map((c, i) => React.createElement("div", { 
+          style: { 
+            minWidth: "100%", 
+            snapAlign: "center", // TRAVA: Ponto de parada obrigatório do item
+            snapStop: "always" // Opcional: força a parada mesmo em scrolls rápidos
+          }, 
+          key: c.id 
+        }, renderCard(c, i, c.isCheckingAccount)))
+      )
+    ),
+
+    /* LISTA DE LANÇAMENTOS - MOSTRADA FORA DO CARROSSEL PARA O CARTÃO ATUAL */
+    !loading && cards.length > 0 && (() => {
+      const card = cards[currentIndex];
+      const cardExp = expenses.filter((e) => e.card === card.name && !e.isCheckingDebit);
+      if (cardExp.length === 0) return null;
+
+      return React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, padding: "20px" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),
           React.createElement("span", { style: { color: "#FF6200", fontWeight: 700, fontSize: 14 } }, "⇅ Filtros")
@@ -1402,34 +1460,8 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             React.createElement("div", { style: { fontWeight: 700, color: e.paid ? C.accent : C.textPri, fontSize: 14, flexShrink: 0 } }, (e.paid ? "" : "-") + fmt(e.amount))
           )
         ))
-      )
-    );
-  };
-
-  return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
-    React.createElement(TopBar, { 
-      title: "Cartões", onBack,
-      action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "+ Novo")
-    }),
-
-    loading ? React.createElement(Loader, null) : React.createElement("div", { style: { padding: "0 20px" } },
-      /* CARROSSEL INDICATOR */
-      cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
-        cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
-      ),
-      React.createElement("div", { 
-        onScroll: (e) => {
-           const container = e.target;
-           const width = container.offsetWidth;
-           const index = Math.round(container.scrollLeft / width);
-           if(index !== currentIndex) setCurrentIndex(index);
-        },
-        style: { display: "flex", overflowX: "auto", snapType: "x mandatory", scrollBehavior: "smooth", gap: 20, margin: "0 -5px", padding: "5px" }, className: "no-scrollbar"
-      },
-        cards.length === 0 ? React.createElement("div", { style: { textAlign: 'center', width: '100%', padding: 40, color: C.textMut } }, "Nenhum cartão cadastrado") :
-        cards.map((c, i) => React.createElement("div", { style: { minWidth: "100%", snapAlign: "start" }, key: c.id }, renderCard(c, i, c.isCheckingAccount)))
-      )
-    ),
+      );
+    })(),
 
     modal && React.createElement(CardModal, { userId: user.id, card: modal === "new" ? null : modal, onClose: () => setModal(null), onSaved: handleModalSaved }),
     baixaCard && React.createElement(BaixaModal, { userId: user.id, creditCard: baixaCard, checkingCards, expenses, onClose: () => setBaixaCard(null), onSaved: handleBaixaSaved })

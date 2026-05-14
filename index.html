@@ -896,9 +896,10 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
 }
 function AddIncomeScreen({ user, onBack, onSaved }) {
   const [dbCards, setDbCards] = useState([]);
-  const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_INCOME[0], date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10), checkingCardId: "" });
+  const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_INCOME[0], date: (new Date()).toISOString().slice(0, 10), checkingCardId: "" });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     dbByIndex("cards", "userId", user.id).then((cs) => {
       setDbCards(cs);
@@ -906,7 +907,9 @@ function AddIncomeScreen({ user, onBack, onSaved }) {
       if (first) setForm((f) => ({ ...f, checkingCardId: String(first.id) }));
     });
   }, [user.id]);
+
   const checkingCards = dbCards.filter((c) => c.isCheckingAccount);
+
   const handle = async () => {
     if (!form.desc || !form.amount) return;
     setSaving(true);
@@ -915,10 +918,10 @@ function AddIncomeScreen({ user, onBack, onSaved }) {
       amount: parseFloat(form.amount),
       category: form.category,
       date: form.date,
-      month: (/* @__PURE__ */ new Date(form.date + "T12:00:00")).getMonth() + 1,
-      year: (/* @__PURE__ */ new Date(form.date + "T12:00:00")).getFullYear(),
+      month: (new Date(form.date + "T12:00:00")).getMonth() + 1,
+      year: (new Date(form.date + "T12:00:00")).getFullYear(),
       userId: user.id,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      createdAt: (new Date()).toISOString()
     };
     const id = await dbAdd("incomes", rec);
     const selCC = checkingCards.find((c) => String(c.id) === form.checkingCardId);
@@ -934,7 +937,138 @@ function AddIncomeScreen({ user, onBack, onSaved }) {
       onSaved();
     }, 1400);
   };
-  return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 40 } }, /* @__PURE__ */ React.createElement(TopBar, { title: "Nova Receita", onBack }), /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 20px", display: "flex", flexDirection: "column", gap: 14 } }, saved && /* @__PURE__ */ React.createElement(Toast, { msg: "Receita salva e saldo atualizado!" }), /* @__PURE__ */ React.createElement(FormField, { label: "Descri\xE7\xE3o", icon: "\u{1F4DD}" }, /* @__PURE__ */ React.createElement("input", { value: form.desc, onChange: (e) => setForm({ ...form, desc: e.target.value }), placeholder: "Ex: Sal\xE1rio", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Valor (R$)", icon: "\u{1F4B0}" }, /* @__PURE__ */ React.createElement("input", { value: form.amount, onChange: (e) => setForm({ ...form, amount: e.target.value }), type: "number", placeholder: "0,00", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Categoria", icon: "\u{1F3F7}\uFE0F" }, /* @__PURE__ */ React.createElement("select", { value: form.category, onChange: (e) => setForm({ ...form, category: e.target.value }), style: getInputStyle() }, CATEGORIES_INCOME.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c)))), /* @__PURE__ */ React.createElement(FormField, { label: "Data", icon: "\u{1F4C5}" }, /* @__PURE__ */ React.createElement("input", { value: form.date, onChange: (e) => setForm({ ...form, date: e.target.value }), type: "date", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Creditar em qual conta corrente?", icon: "\u{1F3E6}" }, checkingCards.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { background: C.yellow + "22", border: `1px solid ${C.yellow}`, borderRadius: 12, padding: 12, color: C.yellow, fontSize: 13 } }, "\u26A0\uFE0F Cadastre uma conta corrente em Cart\xF5es primeiro.") : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, checkingCards.map((cc) => /* @__PURE__ */ React.createElement("button", { key: cc.id, onClick: () => setForm({ ...form, checkingCardId: String(cc.id) }), style: { display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 12, border: `2px solid ${String(cc.id) === form.checkingCardId ? C.accent : C.border}`, background: String(cc.id) === form.checkingCardId ? C.accent + "11" : "#F8FAFC", cursor: "pointer", textAlign: "left" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 32, height: 32, borderRadius: 10, background: cc.color, flexShrink: 0 } }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: C.textPri } }, cc.name), cc.balance != null && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "Saldo atual: ", fmt(cc.balance))), String(cc.id) === form.checkingCardId && /* @__PURE__ */ React.createElement("span", { style: { color: C.accent, fontSize: 18, fontWeight: 700 } }, "\u2713"))))), /* @__PURE__ */ React.createElement(Btn, { label: saving ? "Salvando..." : "Salvar Receita", color: `linear-gradient(135deg,${C.accentD},#065f46)`, onClick: handle, disabled: saving })));
+
+  // Estilo de Input padrão Itaú (Clean)
+  const itauInputStyle = {
+    width: "100%",
+    border: "none",
+    borderBottom: "1.5px solid #DCDCDC",
+    padding: "12px 0px",
+    fontSize: "16px",
+    fontWeight: "500",
+    color: "#32336e",
+    background: "transparent",
+    outline: "none",
+    borderRadius: 0
+  };
+
+  const labelStyle = {
+    fontSize: "12px",
+    fontWeight: "700",
+    color: "#32336e",
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+    marginBottom: "4px"
+  };
+
+  return React.createElement("div", { style: { background: "#FFFFFF", minHeight: "100dvh", paddingBottom: 40 } },
+    React.createElement(TopBar, { title: "Nova Receita", onBack }),
+    
+    React.createElement("div", { style: { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 24 } },
+      saved && React.createElement(Toast, { msg: "Receita salva e saldo atualizado!" }),
+
+      // Campo Descrição
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Descrição"),
+        React.createElement("input", { 
+          value: form.desc, 
+          onChange: (e) => setForm({ ...form, desc: e.target.value }), 
+          placeholder: "Ex: Salário", 
+          style: itauInputStyle 
+        })
+      ),
+
+      // Campo Valor
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Valor (R$)"),
+        React.createElement("input", { 
+          value: form.amount, 
+          onChange: (e) => setForm({ ...form, amount: e.target.value }), 
+          type: "number", 
+          placeholder: "0,00", 
+          style: { ...itauInputStyle, fontSize: "24px", fontWeight: "800", color: "#059669" } 
+        })
+      ),
+
+      // Campo Categoria e Data Lado a Lado
+      React.createElement("div", { style: { display: "flex", gap: 20 } },
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("label", { style: labelStyle }, "Categoria"),
+          React.createElement("select", { 
+            value: form.category, 
+            onChange: (e) => setForm({ ...form, category: e.target.value }), 
+            style: itauInputStyle 
+          }, CATEGORIES_INCOME.map((c) => React.createElement("option", { key: c }, c)))
+        ),
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("label", { style: labelStyle }, "Data"),
+          React.createElement("input", { 
+            value: form.date, 
+            onChange: (e) => setForm({ ...form, date: e.target.value }), 
+            type: "date", 
+            style: itauInputStyle 
+          })
+        )
+      ),
+
+      // Seleção de Conta
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Creditar em qual conta?"),
+        checkingCards.length === 0 ? 
+          React.createElement("div", { style: { background: "#FFF9F5", border: "1px solid #FFEDD5", borderRadius: 8, padding: 12, color: "#EA580C", fontSize: 13, marginTop: 8 } }, "⚠️ Cadastre uma conta corrente primeiro.") :
+          React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginTop: 10 } },
+            checkingCards.map((cc) => {
+              const isSelected = String(cc.id) === form.checkingCardId;
+              return React.createElement("button", {
+                key: cc.id,
+                onClick: () => setForm({ ...form, checkingCardId: String(cc.id) }),
+                style: {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "16px",
+                  borderRadius: "12px",
+                  border: isSelected ? "2px solid #FF6200" : "1px solid #EAEAEA",
+                  background: isSelected ? "#FFF9F5" : "#FFFFFF",
+                  transition: "all 0.2s",
+                  cursor: "pointer",
+                  textAlign: "left"
+                }
+              },
+                React.createElement("div", { style: { width: 36, height: 36, borderRadius: "50%", background: cc.color || "#32336e", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: "bold", fontSize: "14px" } }, "CC"),
+                React.createElement("div", { style: { flex: 1 } },
+                  React.createElement("div", { style: { fontSize: "14px", fontWeight: "700", color: "#32336e" } }, cc.name),
+                  cc.balance != null && React.createElement("div", { style: { fontSize: "12px", color: "#666" } }, "Saldo: " + fmt(cc.balance))
+                ),
+                isSelected && React.createElement("div", { style: { width: 20, height: 20, borderRadius: "50%", background: "#FF6200", display: "flex", alignItems: "center", justifyContent: "center" } }, 
+                  React.createElement("span", { style: { color: "#FFF", fontSize: "12px" } }, "✓")
+                )
+              );
+            })
+          )
+      ),
+
+      // Botão Salvar (Itaú Style)
+      React.createElement("div", { style: { marginTop: 10 } },
+        React.createElement("button", {
+          onClick: handle,
+          disabled: saving,
+          style: {
+            width: "100%",
+            padding: "16px",
+            borderRadius: "25px",
+            border: "none",
+            background: saving ? "#CCC" : "#FF6200",
+            color: "#FFF",
+            fontSize: "16px",
+            fontWeight: "700",
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(255, 98, 0, 0.2)"
+          }
+        }, saving ? "Processando..." : "Salvar Receita")
+      )
+    )
+  );
 }
 function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSaved }) {
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
@@ -1466,7 +1600,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
   // Mapeamento das imagens enviadas
   const flagIcons = {
-    "Mastercard": "mastecard.png",
+    "Mastercard": "Mastercard.png",
     "Visa": "visa.png",
     "Outros": "outros.png"
   };

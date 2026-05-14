@@ -1773,20 +1773,83 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
   } }));
 }
 const navItems = [
-  { id: "dashboard", icon: "\u229E", label: "In\xEDcio" },
-  { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" }, // <-- Novo item
+  { id: "dashboard", icon: "\u229E", label: "Início" },
+  { id: "calendar", icon: "\u{1F4C5}", label: "Agenda" },
   { id: "history-expense", icon: "\u2193", label: "Despesas" },
   { id: "agrupar", icon: "\u{1F4E6}", label: "Agrupar" },
   { id: "extract", icon: "\u{1F4CB}", label: "Extrato" },
   { id: "history-income", icon: "\u2191", label: "Receitas" },
-  { id: "limits", icon: "\u{1F4CA}", label: "Limites" }, // <-- Implementado aqui
-  { id: "cards", icon: "\u25A3", label: "Cart\xF5es" }
+  { id: "limits", icon: "\u{1F4CA}", label: "Limites" },
+  { id: "cards", icon: "\u25A3", label: "Cartões" }
 ];
+
 function BottomNav({ active, onNav }) {
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", paddingBottom: "env(safe-area-inset-bottom,0px)", zIndex: 100, boxShadow: C === THEMES.light ? "0 -2px 16px rgba(0,0,0,0.06)" : "none" } }, navItems.map((n) => {
+  return /* @__PURE__ */ React.createElement("div", { 
+    style: { 
+      position: "fixed", 
+      bottom: 0, 
+      left: 0, 
+      right: 0, 
+      background: "#FFFFFF", 
+      borderTop: `1px solid #E2E8F0`, 
+      display: "flex", 
+      paddingBottom: "env(safe-area-inset-bottom, 10px)", 
+      paddingTop: "8px",
+      zIndex: 1000, 
+      boxShadow: "0 -4px 12px rgba(0,0,0,0.05)",
+      overflowX: "auto" // Garante acessibilidade para muitos itens
+    },
+    className: "no-scrollbar"
+  }, navItems.map((n) => {
     const screenName = typeof active === "string" ? active : active?.name || "";
-    const isActive = screenName === n.id || screenName === "add-expense" && n.id === "history-expense" || screenName === "add-income" && n.id === "history-income" || screenName === "edit-expense" && n.id === "history-expense" || screenName === "edit-income" && n.id === "history-income";
-    return /* @__PURE__ */ React.createElement("button", { key: n.id, onClick: () => onNav(n.id), style: { flex: 1, padding: "10px 4px 8px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 20, color: isActive ? C.accent : C.textMut } }, n.icon), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: isActive ? C.accent : C.textMut, fontWeight: isActive ? 700 : 400 } }, n.label));
+    
+    // Lógica de ativação original mantida
+    const isActive = screenName === n.id || 
+                     (screenName === "add-expense" && n.id === "history-expense") || 
+                     (screenName === "add-income" && n.id === "history-income") || 
+                     (screenName === "edit-expense" && n.id === "history-expense") || 
+                     (screenName === "edit-income" && n.id === "history-income");
+    
+    const activeColor = "#FF6200"; // Laranja padrão Itaú
+    const inactiveColor = "#94A3B8";
+
+    return /* @__PURE__ */ React.createElement("button", { 
+      key: n.id, 
+      onClick: () => onNav(n.id), 
+      style: { 
+        flex: "1 0 auto", 
+        minWidth: "65px",
+        padding: "8px 4px", 
+        background: "none", 
+        border: "none", 
+        cursor: "pointer", 
+        display: "flex", 
+        flexDirection: "column", 
+        alignItems: "center", 
+        gap: 4,
+        transition: "all 0.2s ease"
+      } 
+    }, 
+      /* Ícone */
+      /* @__PURE__ */ React.createElement("span", { 
+        style: { 
+          fontSize: 22, 
+          color: isActive ? activeColor : inactiveColor,
+          transform: isActive ? "scale(1.1)" : "scale(1)",
+          transition: "transform 0.2s ease"
+        } 
+      }, n.icon), 
+      
+      /* Label */
+      /* @__PURE__ */ React.createElement("span", { 
+        style: { 
+          fontSize: 10, 
+          color: isActive ? "#000000" : inactiveColor, 
+          fontWeight: isActive ? 700 : 500,
+          textTransform: "lowercase" // Estilo minimalista de apps bancários
+        } 
+      }, n.label)
+    );
   }));
 }
 
@@ -2156,48 +2219,225 @@ function AgruparScreen({ user, onBack, onSaved, refresh }) {
     )
   );
 }
+
+function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
+  const [cards, setCards] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [incomes, setIncomes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [c, e, i] = await Promise.all([
+      dbByIndex("cards", "userId", user.id),
+      dbByIndex("expenses", "userId", user.id),
+      dbByIndex("incomes", "userId", user.id)
+    ]);
+    // Filtra apenas contas do tipo "isCheckingAccount"
+    setCards(c.filter(x => x.isCheckingAccount));
+    setExpenses(e);
+    setIncomes(i);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
+  if (loading) return React.createElement(Loader, null);
+
+  const card = cards[currentIndex];
+  
+  // Filtra lançamentos específicos desta conta
+  const accountExp = card ? expenses.filter(e => e.paid && (e.card === card.name || e.paidFromCard === card.name)) : [];
+  const accountInc = card ? incomes.filter(i => String(i.checkingCardId) === String(card.id)) : [];
+
+  // Une receitas e despesas baixadas por data
+  const timeline = [...accountExp.map(e => ({...e, _type: 'exp'})), ...accountInc.map(i => ({...i, _type: 'inc'}))]
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const renderAccountCard = (c, i) => React.createElement("div", { 
+    key: c.id, 
+    style: { minWidth: "100%", snapAlign: "start", padding: "0 10px" } 
+  },
+    React.createElement("div", { 
+      style: { 
+        background: `linear-gradient(135deg, #32336e, #1e1f4d)`, 
+        height: 160, borderRadius: 24, padding: 24, color: "#FFF", 
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
+        boxShadow: "0 12px 24px rgba(50,51,110,0.2)"
+      } 
+    },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 14, opacity: 0.8, fontWeight: 500 } }, "saldo disponível"),
+          React.createElement("div", { style: { fontSize: 28, fontWeight: 800, marginTop: 4 } }, fmt(c.balance || 0))
+        ),
+        React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 } }, "🏦")
+      ),
+      React.createElement("div", { style: { fontSize: 13, fontWeight: 600, letterSpacing: 1 } }, c.name.toUpperCase())
+    )
+  );
+
+  return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 100 } },
+    React.createElement(TopBar, { title: "Minhas Contas", onBack }),
+
+    /* CARROSSEL DE CONTAS CORRENTES */
+    cards.length > 0 ? React.createElement(React.Fragment, null,
+      React.createElement("div", { 
+        onScroll: (e) => setCurrentIndex(Math.round(e.target.scrollLeft / e.target.offsetWidth)),
+        style: { display: "flex", overflowX: "auto", snapType: "x mandatory", padding: "10px 0" }, 
+        className: "no-scrollbar" 
+      }, cards.map(renderAccountCard)),
+      
+      /* DOTS INDICATOR */
+      cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 } },
+        cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : "#EEE", transition: "width 0.3s" } }))
+      ),
+
+      /* BOTÕES DE ATALHO RÁPIDO */
+      React.createElement("div", { style: { display: "flex", gap: 12, padding: "0 20px 20px" } },
+        React.createElement("button", { 
+          onClick: () => onNav("add-income"),
+          style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "14px", borderRadius: 14, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
+        }, "Depositar"),
+        React.createElement("button", { 
+          onClick: () => onNav("extract"),
+          style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 14, fontWeight: 700, fontSize: 14, cursor: "pointer" } 
+        }, "Extrato Detalhado")
+      ),
+
+      /* EXTRATO DA CONTA (LINHA DO TEMPO) */
+      React.createElement("div", { style: { padding: "20px", background: "#F9F9F9", borderRadius: "30px 30px 0 0", minHeight: "50vh" } },
+        React.createElement("div", { style: { fontSize: 16, fontWeight: 800, marginBottom: 20, color: "#000" } }, "lançamentos na conta"),
+        
+        timeline.length === 0 ? React.createElement("div", { style: { textAlign: "center", padding: 40, color: "#999" } }, "Nenhum movimento nesta conta.") :
+        timeline.map((item, idx) => {
+          const isInc = item._type === 'inc';
+          return React.createElement("div", { key: item.id + item._type, style: { marginBottom: 20 } },
+            /* Agrupador de Data */
+            (idx === 0 || item.date !== timeline[idx-1].date) && React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 12 } }, 
+              new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+            ),
+            
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+              React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
+                React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: isInc ? "#E1FCEF" : "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, 
+                  isInc ? "💰" : catIcon[item.category] || "💸"
+                ),
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
+                  React.createElement("div", { style: { fontSize: 11, color: "#999", fontWeight: 700, marginTop: 2 } }, isInc ? "RECEBIDO" : "BAIXADO")
+                )
+              ),
+              React.createElement("div", { style: { fontWeight: 700, color: isInc ? "#059669" : "#000", fontSize: 14 } }, 
+                (isInc ? "+ " : "- ") + fmt(item.amount)
+              )
+            ),
+            React.createElement("div", { style: { height: 1, background: "#EEE", marginTop: 15 } })
+          );
+        })
+      )
+    ) : React.createElement("div", { style: { textAlign: "center", padding: 60, color: "#999" } }, "Nenhuma conta corrente cadastrada."))
+  );
+}
+
+
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");
   const [refresh, setRefresh] = useState(0);
   const [dark, setDark] = useState(() => localStorage.getItem(LS_DARK_KEY) === "1");
   const triggerRefresh = () => setRefresh((r) => r + 1);
+
   C = dark ? THEMES.dark : THEMES.light;
   const bg = C.bg;
+
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
     localStorage.setItem(LS_DARK_KEY, next ? "1" : "0");
   };
+
   const sName = typeof screen === "string" ? screen : screen?.name || "";
   const showNav = !["add-expense", "add-income", "sync", "edit-expense", "edit-income", "goals", "recurring"].includes(sName);
-  if (!user) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser, dark }));
-  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), (() => {
-    const sName2 = typeof screen === "string" ? screen : screen?.name || "";
-    const sId = typeof screen === "object" ? screen?.id : null;
-    return /* @__PURE__ */ React.createElement(React.Fragment, null, sName2 === "dashboard" && /* @__PURE__ */ React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), sName2 === "add-expense" && /* @__PURE__ */ React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-expense");
-    } }), sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-income");
-    } }), sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-expense");
-    } }), sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
-      triggerRefresh();
-      setScreen("history-income");
-    } }), sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }), sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
-      triggerRefresh();
-      setScreen("dashboard");
-    } }), sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), sName2 === "agrupar" && /* @__PURE__ */ React.createElement(AgruparScreen, { 
-      user, 
-      onBack: () => setScreen("cards"), 
-      onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, 
-      refresh,
-      inicialCard: typeof screen === "object" ? screen.cardName : "Todos" 
-    }));
-  })(), showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")));
+
+  if (!user) return /* @__PURE__ */ React.createElement(React.Fragment, null, 
+    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
+    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
+    /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser, dark })
+  );
+
+  return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, 
+    /* @__PURE__ */ React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
+    /* @__PURE__ */ React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
+    (() => {
+      const sName2 = typeof screen === "string" ? screen : screen?.name || "";
+      const sId = typeof screen === "object" ? screen?.id : null;
+
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, 
+        sName2 === "dashboard" && /* @__PURE__ */ React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), 
+        
+        sName2 === "add-expense" && /* @__PURE__ */ React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-expense");
+        } }), 
+
+        sName2 === "add-income" && /* @__PURE__ */ React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-income");
+        } }), 
+
+        sName2 === "edit-expense" && /* @__PURE__ */ React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-expense");
+        } }), 
+
+        sName2 === "edit-income" && /* @__PURE__ */ React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => {
+          triggerRefresh();
+          setScreen("history-income");
+        } }), 
+
+        sName2 === "history-expense" && /* @__PURE__ */ React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), 
+
+        sName2 === "history-income" && /* @__PURE__ */ React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), 
+
+        sName2 === "extract" && /* @__PURE__ */ React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
+
+        sName2 === "cards" && /* @__PURE__ */ React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }), 
+
+        // Rota da Nova Tela de Conta Corrente
+        sName2 === "checking-account" && /* @__PURE__ */ React.createElement(CheckingAccountScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }),
+
+        sName2 === "comparison" && /* @__PURE__ */ React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
+
+        sName2 === "goals" && /* @__PURE__ */ React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
+
+        sName2 === "recurring" && /* @__PURE__ */ React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => {
+          triggerRefresh();
+          setScreen("dashboard");
+        } }), 
+
+        sName2 === "sync" && /* @__PURE__ */ React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), 
+
+        sName2 === "limits" && /* @__PURE__ */ React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
+
+        sName2 === "calendar" && /* @__PURE__ */ React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
+
+        sName2 === "agrupar" && /* @__PURE__ */ React.createElement(AgruparScreen, { 
+          user, 
+          onBack: () => setScreen("cards"), 
+          onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, 
+          refresh,
+          inicialCard: typeof screen === "object" ? screen.cardName : "Todos" 
+        })
+      );
+    })(), 
+    showNav && /* @__PURE__ */ React.createElement(BottomNav, { active: sName, onNav: setScreen }), 
+    sName === "dashboard" && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, 
+      /* @__PURE__ */ React.createElement("button", { onClick: toggleDark, style: { width: 44, height: 44, borderRadius: 22, background: dark ? "#FCD34D" : "#1e293b", border: "none", color: dark ? "#1e293b" : "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", justifyContent: "center" } }, dark ? "\u2600\uFE0F" : "\u{1F319}"), 
+      /* @__PURE__ */ React.createElement("button", { onClick: () => setScreen("sync"), style: { width: 44, height: 44, borderRadius: 22, background: `linear-gradient(135deg,${C.blue},#1d4ed8)`, border: "none", color: "#fff", fontSize: 18, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.4)", display: "flex", alignItems: "center", justifyContent: "center" } }, "\u{1F504}")
+    )
+  );
 }
 window.ReactDOM.createRoot(document.getElementById('root')).render(window.React.createElement(App));
 </script>

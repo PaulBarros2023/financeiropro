@@ -1279,13 +1279,13 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   const [payAmount, setPayAmount] = useState("");
   const [selChecking, setSelChecking] = useState("");
   const [relatedExpenses, setRelatedExpenses] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([expense.id]); // Já inicia com a atual selecionada
+  const [selectedIds, setSelectedIds] = useState([expense.id]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadRelated() {
-      // Busca despesas do mesmo cartão para o checkbox
       const all = await dbByIndex("expenses", "userId", user.id);
+      // Busca apenas despesas pendentes do cartão atual
       const filtered = all.filter(e => e.card === expense.card && !e.paid && !e.isCheckingDebit);
       setRelatedExpenses(filtered);
       setLoading(false);
@@ -1294,34 +1294,57 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   }, [expense.card, user.id]);
 
   const handleProcess = async () => {
-    const valor = parseFloat(payAmount.replace(",", "."));
-    if (!valor || valor <= 0) return alert("Informe o valor");
-    if (!selChecking) return alert("Escolha a conta de saída");
+    // Força a conversão para número e substitui vírgula por ponto
+    const totalCash = Number(String(payAmount).replace(",", "."));
+    
+    if (isNaN(totalCash) || totalCash <= 0) return alert("Digite um valor válido");
+    if (!selChecking) return alert("Selecione a conta de destino");
+    if (selectedIds.length === 0) return alert("Selecione ao menos uma conta");
 
     try {
-      // Processa cada despesa selecionada (o valor parcial será rateado ou aplicado à principal)
-      // Aqui aplicamos a lógica na despesa principal aberta:
-      const original = relatedExpenses.find(e => e.id === expense.id);
-      
-      if (valor >= original.amount) {
-        alert("Para valor total, use a baixa comum.");
-        return;
+      let currentPool = totalCash;
+      const updates = [];
+
+      // Lógica de abatimento sequencial
+      for (const id of selectedIds) {
+        if (currentPool <= 0) break;
+
+        const item = relatedExpenses.find(e => e.id === id);
+        if (!item) continue;
+
+        const amountToDeduct = Math.min(item.amount, currentPool);
+        const newBalance = Number((item.amount - amountToDeduct).toFixed(2));
+
+        if (newBalance <= 0) {
+          // Baixa total do item
+          updates.push(dbUpdate("expenses", {
+            ...item,
+            paid: true,
+            paidAt: new Date().toISOString(),
+            paidFromCard: selChecking,
+            updatedAt: new Date().toISOString()
+          }));
+        } else {
+          // Abatimento parcial mantendo pendente
+          updates.push(dbUpdate("expenses", {
+            ...item,
+            amount: newBalance,
+            updatedAt: new Date().toISOString()
+          }));
+        }
+        currentPool -= amountToDeduct;
       }
 
-      // 1. Atualiza a original (Saldo devedor)
-      await dbUpdate("expenses", {
-        ...original,
-        amount: original.amount - valor,
-        updatedAt: new Date().toISOString()
-      });
+      // 1. Executa todas as atualizações de saldo
+      await Promise.all(updates);
 
-      // 2. Cria o registro de pagamento (Baixado)
+      // 2. Cria o lançamento de saída ÚNICO para o seu extrato
       await dbSave("expenses", {
         userId: user.id,
-        desc: `${original.desc} (Parcial)`,
-        amount: valor,
-        category: original.category,
-        card: original.card,
+        desc: `Pagto Parcial: ${expense.card}`,
+        amount: totalCash,
+        category: "Pagamento",
+        card: expense.card,
         paidFromCard: selChecking,
         date: new Date().toISOString().split('T'),
         month: new Date().getMonth() + 1,
@@ -1332,62 +1355,78 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
         createdAt: new Date().toISOString()
       });
 
-      onSaved();
-    } catch (e) {
-      console.error(e);
+      // 3. Registra no log de histórico
+      await logAction(user.id, "expense", "partial_save", { total: totalCash });
+
+      onSaved(); // Atualiza a interface
+    } catch (err) {
+      console.error("Falha ao salvar no IndexedDB:", err);
+      alert("Erro técnico ao salvar dados");
     }
   };
 
-  return React.createElement("div", { className: "modal-overlay", style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' } },
-    React.createElement("div", { style: { background: '#FFF', width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '90vh', overflowY: 'auto' } },
-      
-      React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 20 } },
-        React.createElement("span", { style: { fontWeight: 800, fontSize: 18 } }, "Baixa Parcial"),
-        React.createElement("button", { onClick: onClose, style: { border: 'none', background: 'none', fontSize: 20 } }, "✕")
+  return React.createElement("div", { 
+    style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', zIndex: 2000, display: 'flex', alignItems: 'flex-end' } 
+  },
+    React.createElement("div", { 
+      style: { background: '#FFF', width: '100%', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: "20px 20px 50px", maxHeight: '92vh', overflowY: 'auto' } 
+    },
+      React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 } },
+        React.createElement("span", { style: { fontWeight: 900, fontSize: 20, color: '#32336e' } }, "Baixa Parcial"),
+        React.createElement("button", { onClick: onClose, style: { border: 'none', background: '#F0F0F0', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer' } }, "✕")
       ),
 
-      React.createElement("div", { style: { marginBottom: 15 } },
-        React.createElement("label", { style: { fontSize: 12, fontWeight: 700, color: '#999' } }, "CONTAS PENDENTES NO CARTÃO:"),
-        loading ? React.createElement(Loader) : 
-        relatedExpenses.map(ex => React.createElement("div", { key: ex.id, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #F5F5F5' } },
+      /* LISTA DE CONTAS COM CHECKBOX */
+      React.createElement("div", { style: { marginBottom: 20 } },
+        relatedExpenses.map(ex => React.createElement("div", { 
+          key: ex.id, 
+          onClick: () => {
+            if(selectedIds.includes(ex.id)) setSelectedIds(selectedIds.filter(id => id !== ex.id));
+            else setSelectedIds([...selectedIds, ex.id]);
+          },
+          style: { display: 'flex', alignItems: 'center', gap: 15, padding: '15px 0', borderBottom: '1px solid #F0F0F0', cursor: 'pointer' } 
+        },
           React.createElement("input", { 
             type: "checkbox", 
+            readOnly: true,
             checked: selectedIds.includes(ex.id),
-            onChange: () => {
-              if(selectedIds.includes(ex.id)) setSelectedIds(selectedIds.filter(id => id !== ex.id));
-              else setSelectedIds([...selectedIds, ex.id]);
-            }
+            style: { width: 20, height: 20, accentColor: '#FF6200' }
           }),
-          React.createElement("div", { style: { flex: 1, fontSize: 14, fontWeight: 600 } }, ex.desc),
-          React.createElement("div", { style: { fontWeight: 700 } }, fmt(ex.amount))
+          React.createElement("div", { style: { flex: 1, fontSize: 15, fontWeight: 600, color: '#333' } }, ex.desc),
+          React.createElement("div", { style: { fontWeight: 800, color: '#32336e' } }, fmt(ex.amount))
         ))
       ),
 
-      React.createElement("div", { style: { marginBottom: 20 } },
-        React.createElement("label", { style: { fontSize: 12, fontWeight: 700, color: '#32336e' } }, "VALOR A PAGAR AGORA"),
+      /* INPUT DE VALOR */
+      React.createElement("div", { style: { marginBottom: 25 } },
+        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#FF6200' } }, "VALOR QUE VOCÊ ESTÁ PAGANDO AGORA"),
         React.createElement("input", { 
-          style: { width: '100%', padding: 15, borderRadius: 12, border: '2px solid #32336e', fontSize: 20, fontWeight: 800, marginTop: 5 },
-          placeholder: "R$ 0,00",
+          type: "number",
+          step: "0.01",
+          style: { width: '100%', padding: 18, borderRadius: 15, border: '2px solid #FF6200', fontSize: 24, fontWeight: 900, marginTop: 8, textAlign: 'center' },
           value: payAmount,
-          onChange: (e) => setPayAmount(e.target.value)
+          onChange: (e) => setPayAmount(e.target.value),
+          placeholder: "0.00"
         })
       ),
 
-      React.createElement("div", { style: { marginBottom: 25 } },
-        React.createElement("label", { style: { fontSize: 12, fontWeight: 700, color: '#32336e' } }, "DEBITAR DA CONTA CORRENTE"),
+      /* SELEÇÃO DE BANCO */
+      React.createElement("div", { style: { marginBottom: 35 } },
+        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#32336e' } }, "RETIRAR SALDO DE QUAL CONTA?"),
         React.createElement("select", { 
-          style: { width: '100%', padding: 12, borderRadius: 12, border: '1px solid #DDD', marginTop: 5 },
+          style: { width: '100%', padding: 16, borderRadius: 15, border: '1px solid #CCC', marginTop: 8, fontSize: 16, fontWeight: 600, background: '#F8F9FA' },
           value: selChecking,
           onChange: (e) => setSelChecking(e.target.value)
         },
-          React.createElement("option", { value: "" }, "Selecione o banco"),
+          React.createElement("option", { value: "" }, "Escolha o banco..."),
           cards.map(c => React.createElement("option", { key: c.id, value: c.name }, c.name))
         )
       ),
 
+      /* BOTÃO SALVAR */
       React.createElement("button", { 
         onClick: handleProcess,
-        style: { width: '100%', padding: 18, background: '#FF6200', color: '#FFF', borderRadius: 16, border: 'none', fontWeight: 800, fontSize: 16 }
+        style: { width: '100%', padding: 22, background: '#32336e', color: '#FFF', borderRadius: 20, border: 'none', fontWeight: 900, fontSize: 18, cursor: 'pointer' }
       }, "CONFIRMAR PAGAMENTO")
     )
   );

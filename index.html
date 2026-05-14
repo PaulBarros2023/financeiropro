@@ -2718,19 +2718,17 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
 ];//
 
 
+// 1. Corrigido: Guardamos apenas o SRC da imagem para evitar erros de inicialização
 const navItems = [
-  { id: "dashboard", icon: React.createElement("img", { src: "dashboard.png", style: { width: 20, height: 20 } }), label: "Início" },
-  { id: "calendar", icon: React.createElement("img", { src: "calendario.png", style: { width: 20, height: 20 } }), label: "Agenda" },
-  //{ id: "history-expense", icon: "\u2193", label: "Despesas" },//
-  //{ id: "history-income", icon: "\u2191", label: "Receitas" },//
-  { id: "extract", icon: React.createElement("img", { src: "Frame 25.png", style: { width: 20, height: 20 } }), label: "Extrato" },
-  { id: "checking-account", icon: React.createElement("img", { src: "receita.png", style: { width: 20, height: 20 } }), label: "Contas" },
-  { id: "cards", icon: React.createElement("img", { src: "cartao.png", style: { width: 20, height: 20 } }), label: "Cartões" },
-  { id: "limits", icon: React.createElement("img", { src: "limites.png", style: { width: 20, height: 20 } }), label: "Limites" }
+  { id: "dashboard", icon: "dashboard.png", label: "Início" },
+  { id: "calendar", icon: "calendario.png", label: "Agenda" },
+  { id: "extract", icon: "Frame 25.png", label: "Extrato" },
+  { id: "checking-account", icon: "receita.png", label: "Contas" },
+  { id: "cards", icon: "cartao.png", label: "Cartões" },
+  { id: "limits", icon: "limites.png", label: "Limites" }
 ];
 
 function BottomNav({ active, onNav }) {
-  // Prevenção de erro caso active seja nulo
   const screenName = typeof active === "string" ? active : active?.name || "dashboard";
 
   return React.createElement("div", { 
@@ -2759,7 +2757,7 @@ function BottomNav({ active, onNav }) {
         display: "flex", flexDirection: "column", alignItems: "center", gap: 4 
       } 
     }, 
-      // Container do Ícone (Imagem)
+      // 2. Implementado: O elemento de imagem é criado aqui dentro, usando o caminho do array
       React.createElement("div", { 
         style: { 
           width: 24, 
@@ -2767,14 +2765,17 @@ function BottomNav({ active, onNav }) {
           display: "flex", 
           alignItems: "center", 
           justifyContent: "center",
-          // Se não estiver ativo, a imagem fica cinza. Se ativo, cor original.
           filter: isActive ? "none" : "grayscale(100%)",
           opacity: isActive ? 1 : 0.6,
           transition: "all 0.2s"
         } 
-      }, n.icon), 
+      }, 
+        React.createElement("img", { 
+          src: n.icon, 
+          style: { width: "100%", height: "100%", objectFit: "contain" } 
+        })
+      ), 
       
-      // Label do Menu
       React.createElement("span", { 
         style: { 
           fontSize: 10, 

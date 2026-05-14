@@ -489,7 +489,21 @@ const CARD_COLORS = [
 ];
 const FLAGS = ["Visa", "Mastercard", "Elo", "Amex", "D\xE9bito", "Pix"];
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-const catIcon = { Alimenta\u00E7\u00E3o: "\u{1F6D2}", Transporte: "\u{1F697}", Moradia: "\u{1F3E0}", Sa\u00FAde: "\u{1F48A}", Lazer: "\u{1F3AC}", Educa\u00E7\u00E3o: "\u{1F4DA}", Outros: "\u{1F4A1}", Sal\u00E1rio: "\u{1F4BC}", Freelance: "\u{1F4BB}", Investimentos: "\u{1F4C8}", Aluguel: "\u{1F3D8}\uFE0F" };
+const catIcon = { 
+  "Alimentação": React.createElement("img", { src: "alimentos.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Transporte": React.createElement("img", { src: "transporte.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Moradia": React.createElement("img", { src: "moradia.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Saúde": React.createElement("img", { src: "saude.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Lazer": React.createElement("img", { src: "lazer.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Educação": "🎓", // Mantido original ou use uma imagem se tiver
+  "Outros": React.createElement("img", { src: "outros1.png", style: { width: 22, height: 22, objectFit: 'contain' } }), 
+  "Saída": React.createElement("img", { src: "saida.png", style: { width: 22, height: 22, objectFit: 'contain' } }),
+  "Saída Casal": React.createElement("img", { src: "saida_casal.png", style: { width: 22, height: 22, objectFit: 'contain' } }),
+  "Salário": "💼", 
+  "Freelance": "💻", 
+  "Investimentos": "📈", 
+  "Aluguel": "🏠" 
+};
 const THEMES = {
   light: {
     bg: "#F0F4F8",

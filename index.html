@@ -1285,16 +1285,17 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   React.useEffect(() => {
     async function loadRelated() {
       try {
-        // Busca direta no banco filtrando pelo cartão da despesa atual
         const all = await dbByIndex("expenses", "userId", user.id);
+        // Proteção: Garante que o filtro funcione mesmo se o card for null
+        const cardName = expense.card || "";
         const filtered = all.filter(e => 
-          e.card === expense.card && 
+          e.card === cardName && 
           e.paid === false && 
           !e.isCheckingDebit
         );
         setRelatedExpenses(filtered);
       } catch (err) {
-        alert("Erro ao ler banco de dados");
+        console.error("Erro banco:", err);
       }
       setLoading(false);
     }
@@ -1302,75 +1303,83 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   }, [expense.card, user.id]);
 
   const handleProcess = async () => {
-    // Validação de entrada
+    // 1. Tratamento rigoroso do valor
     const rawValue = String(payAmount).replace(",", ".");
     const totalToPay = Number(parseFloat(rawValue).toFixed(2));
     
-    if (!totalToPay || totalToPay <= 0) return alert("Por favor, digite um valor maior que zero.");
-    if (!selChecking) return alert("Selecione qual conta será debitada.");
-    if (selectedIds.length === 0) return alert("Selecione ao menos um item da lista.");
+    if (!totalToPay || totalToPay <= 0) return alert("Digite um valor válido.");
+    if (!selChecking) return alert("Selecione a conta de saída.");
+    if (selectedIds.length === 0) return alert("Selecione um item.");
 
     try {
-      let remainingPool = totalToPay;
+      let pool = totalToPay;
       
-      // Processamento sequencial obrigatório para IndexedDB
+      // 2. Processamento sequencial
       for (const id of selectedIds) {
-        if (remainingPool <= 0) break;
+        if (pool <= 0) break;
 
         const item = relatedExpenses.find(e => e.id === id);
         if (!item) continue;
 
-        const amountToDeduct = Math.min(item.amount, remainingPool);
-        const newBalance = Number((item.amount - amountToDeduct).toFixed(2));
+        const deduct = Math.min(item.amount, pool);
+        const remaining = Number((item.amount - deduct).toFixed(2));
 
-        // Objeto limpo para evitar erro de DataClone
-        const updateData = {
-          ...item,
+        // 3. Limpeza do objeto (Essencial para não dar Erro Técnico)
+        const cleanUpdate = {
+          id: item.id,
           userId: user.id,
+          desc: item.desc,
+          category: item.category,
+          card: item.card,
+          date: item.date,
+          month: item.month,
+          year: item.year,
+          pagamento: item.pagamento || "Parcelado",
+          createdAt: item.createdAt,
           updatedAt: new Date().toISOString()
         };
 
-        if (newBalance <= 0) {
-          updateData.paid = true;
-          updateData.paidAt = new Date().toISOString();
-          updateData.paidFromCard = selChecking;
-          updateData.amount = item.amount; // Mantém o valor original no registro que foi baixado
+        if (remaining <= 0) {
+          cleanUpdate.paid = true;
+          cleanUpdate.paidAt = new Date().toISOString();
+          cleanUpdate.paidFromCard = selChecking;
+          cleanUpdate.amount = item.amount; 
         } else {
-          updateData.amount = newBalance;
-          updateData.desc = item.desc.includes("(Saldo)") ? item.desc : `${item.desc} (Saldo)`;
+          cleanUpdate.paid = false;
+          cleanUpdate.amount = remaining;
+          cleanUpdate.desc = item.desc.includes("(Saldo)") ? item.desc : `${item.desc} (Saldo)`;
         }
 
-        await dbUpdate("expenses", updateData);
-        remainingPool = Number((remainingPool - amountToDeduct).toFixed(2));
+        await dbPut("expenses", cleanUpdate);
+        pool = Number((pool - deduct).toFixed(2));
       }
 
-      // Registro da saída ÚNICA no extrato bancário
-      const debitEntry = {
+      // 4. Registro ÚNICO de débito (Correção do split('T'))
+      const today = new Date().toISOString().split('T');
+      await dbAdd("expenses", {
         userId: user.id,
-        desc: `Pagto Parcial: ${expense.card}`,
+        desc: `Pagto Parcial: ${expense.card || 'Débito'}`,
         amount: totalToPay,
         category: "Pagamento",
-        card: expense.card,
+        card: selChecking, // O 'cartão' deste registro é a conta que pagou
         paidFromCard: selChecking,
-        date: new Date().toISOString().split('T'),
+        date: today,
         month: new Date().getMonth() + 1,
         year: 2026,
         paid: true,
         paidAt: new Date().toISOString(),
         isCheckingDebit: true,
         createdAt: new Date().toISOString()
-      };
+      });
 
-      await dbSave("expenses", debitEntry);
-      
-      // Sucesso total
       onSaved(); 
     } catch (err) {
-      console.error("Erro crítico no salvamento:", err);
-      alert("Falha técnica ao gravar no banco. Tente novamente.");
+      console.error("Erro técnico detalhado:", err);
+      alert("Erro ao gravar no banco. Verifique o console.");
     }
   };
 
+  // ... (Resto do componente UI permanece igual)
   return React.createElement("div", { 
     style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' } 
   },
@@ -1381,8 +1390,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
         React.createElement("span", { style: { fontWeight: 900, fontSize: 18, color: '#32336e' } }, "Baixa Parcial"),
         React.createElement("button", { onClick: onClose, style: { border: 'none', background: '#F5F5F5', borderRadius: 20, width: 32, height: 32, fontWeight: 'bold' } }, "✕")
       ),
-
-      /* LISTA DE ITENS */
       React.createElement("div", { style: { marginBottom: 20 } },
         loading ? React.createElement(Loader) : 
         relatedExpenses.map(ex => React.createElement("div", { 
@@ -1398,8 +1405,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
           React.createElement("div", { style: { fontWeight: 800, color: '#32336e' } }, fmt(ex.amount))
         ))
       ),
-
-      /* CAMPO DE VALOR */
       React.createElement("div", { style: { marginBottom: 20 } },
         React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "VALOR DO PAGAMENTO AGORA"),
         React.createElement("input", { 
@@ -1410,8 +1415,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
           placeholder: "0.00"
         })
       ),
-
-      /* SELEÇÃO DE CONTA */
       React.createElement("div", { style: { marginBottom: 30 } },
         React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "DEBITAR DE QUAL CONTA?"),
         React.createElement("select", { 
@@ -1423,8 +1426,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
           cards.map(c => React.createElement("option", { key: c.id, value: c.name }, c.name))
         )
       ),
-
-      /* BOTÃO SALVAR */
       React.createElement("button", { 
         onClick: handleProcess,
         style: { width: '100%', padding: 20, background: '#FF6200', color: '#FFF', borderRadius: 16, border: 'none', fontWeight: 900, fontSize: 16, cursor: 'pointer' }

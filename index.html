@@ -3303,6 +3303,9 @@ function App() {
   };
 
   const sName = typeof screen === "string" ? screen : screen?.name || "";
+  const sId = typeof screen === "object" ? screen?.id : null;
+  
+  // Define se a barra de navegação inferior deve aparecer
   const showNav = !["add-expense", "add-income", "sync", "edit-expense", "edit-income", "goals", "recurring"].includes(sName);
 
   if (!user) return React.createElement(React.Fragment, null, 
@@ -3313,34 +3316,50 @@ function App() {
 
   return React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, 
     (() => {
-      const sName2 = typeof screen === "string" ? screen : screen?.name || "";
-      const sId = typeof screen === "object" ? screen?.id : null;
-
-      return React.createElement(React.Fragment, null, 
-        sName2 === "dashboard" && React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), 
-        sName2 === "add-expense" && React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("Extract"); } }), 
-        sName2 === "add-income" && React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("Extract"); } }), 
-        sName2 === "edit-expense" && React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => { triggerRefresh(); setScreen("history-expense"); } }), 
-        sName2 === "edit-income" && React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => { triggerRefresh(); setScreen("history-income"); } }), 
-        sName2 === "history-expense" && React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), 
-        sName2 === "history-income" && React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) }), 
-        sName2 === "extract" && React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
-        sName2 === "cards" && React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }), 
-        sName2 === "checking-account" && React.createElement(CheckingAccountScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh }),
-        sName2 === "comparison" && React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
-        sName2 === "goals" && React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh }), 
-        sName2 === "recurring" && React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("dashboard"); } }), 
-        sName2 === "sync" && React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh }), 
-        sName2 === "limits" && React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
-        sName2 === "calendar" && React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh }), 
-        sName2 === "agrupar" && React.createElement(AgruparScreen, { 
-          user, 
-          onBack: () => setScreen("cards"), 
-          onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, 
-          refresh,
-          inicialCard: typeof screen === "object" ? screen.cardName : "Todos" 
-        })
-      );
+      switch (sName) {
+        case "dashboard":
+          return React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark });
+        case "add-expense":
+          return React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("extract"); } });
+        case "add-income":
+          return React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("extract"); } });
+        case "edit-expense":
+          return React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => { triggerRefresh(); setScreen("history-expense"); } });
+        case "edit-income":
+          return React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => { triggerRefresh(); setScreen("history-income"); } });
+        case "history-expense":
+          return React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) });
+        case "history-income":
+          return React.createElement(HistoryIncomeScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditInc: (rec) => setScreen({ id: rec.id, name: "edit-income" }) });
+        case "extract":
+          return React.createElement(ExtractScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh });
+        case "cards":
+          return React.createElement(CardsScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh });
+        case "checking-account":
+          return React.createElement(CheckingAccountScreen, { user, onBack: () => setScreen("dashboard"), onNav: setScreen, refresh, onRefresh: triggerRefresh });
+        case "comparison":
+          return React.createElement(ComparisonScreen, { user, onBack: () => setScreen("dashboard"), refresh });
+        case "goals":
+          return React.createElement(GoalsScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh });
+        case "recurring":
+          return React.createElement(RecurringScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("dashboard"); } });
+        case "sync":
+          return React.createElement(SyncScreen, { user, onBack: () => setScreen("dashboard"), onSaved: triggerRefresh });
+        case "limits":
+          return React.createElement(LimitsScreen, { user, onBack: () => setScreen("dashboard"), refresh });
+        case "calendar":
+          return React.createElement(CalendarScreen, { user, onBack: () => setScreen("dashboard"), refresh });
+        case "agrupar":
+          return React.createElement(AgruparScreen, { 
+            user, 
+            onBack: () => setScreen("cards"), 
+            onSaved: () => { triggerRefresh(); setScreen("history-expense"); }, 
+            refresh,
+            inicialCard: typeof screen === "object" ? screen.cardName : "Todos" 
+          });
+        default:
+          return React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark });
+      }
     })(), 
     showNav && React.createElement(BottomNav, { active: sName, onNav: setScreen }), 
     sName === "dashboard" && React.createElement("div", { style: { position: "fixed", bottom: 80, right: 16, display: "flex", flexDirection: "column", gap: 10, zIndex: 99 } }, 

@@ -2324,13 +2324,14 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
   // PROTEÇÃO: Verifica se há contas para evitar quebra do app
   const card = cards.length > 0 ? cards[currentIndex] : null;
   
-  // Filtra despesas pagas vinculadas ao nome desta conta
+  // 1. Filtra despesas pagas vinculadas a esta conta (pelo nome)
   const accountExp = card ? expenses.filter(e => e.paid && (e.card === card.name || e.paidFromCard === card.name)) : [];
   
-  // Filtra receitas (entradas) vinculadas ao ID desta conta corrente específica
+  // 2. Filtra receitas (entradas) comparando o ID da conta com 'checkingCardId' da receita
+  // Usamos String() para evitar erros se um for número e o outro texto
   const accountInc = card ? incomes.filter(i => String(i.checkingCardId) === String(card.id)) : [];
 
-  // Une receitas e despesas baixadas por data (Fluxo de Caixa)
+  // 3. Une receitas e despesas baixadas por data para criar o extrato
   const timeline = [
     ...accountExp.map(e => ({...e, _type: 'exp'})), 
     ...accountInc.map(i => ({...i, _type: 'inc'}))
@@ -2393,7 +2394,6 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
         timeline.length === 0 ? React.createElement("div", { style: { textAlign: "center", padding: 40, color: "#999" } }, "Nenhum movimento nesta conta.") :
         timeline.map((item, idx) => {
           const isInc = item._type === 'inc';
-          // Se for receita (inc), usa ícone de dinheiro ou da categoria, senão usa ícone de despesa
           const icon = isInc ? (catIcon[item.category] || "💰") : (catIcon[item.category] || "💸");
           
           return React.createElement("div", { key: item.id + item._type, style: { marginBottom: 20 } },
@@ -2408,7 +2408,7 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
                 ),
                 React.createElement("div", null,
                   React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
-                  React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: isInc ? "#059669" : "#32336e", background: (isInc ? "#059669" : "#32336e") + "15", padding: "2px 6px", borderRadius: 4 } }, isInc ? "ENTRADA" : "SAÍDA BAIXADA")
+                  React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: isInc ? "#059669" : "#32336e", background: (isInc ? "#059669" : "#32336e") + "15", padding: "2px 6px", borderRadius: 4 } }, isInc ? "RECEBIDO" : "BAIXADO")
                 )
               ),
               React.createElement("div", { style: { fontWeight: 700, color: isInc ? "#059669" : "#000", fontSize: 14 } }, 
@@ -2422,8 +2422,6 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
     ) : React.createElement("div", { style: { textAlign: "center", padding: 60, color: "#999" } }, "Nenhuma conta corrente cadastrada.")
   );
 }
-
-
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("dashboard");

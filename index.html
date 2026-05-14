@@ -1286,7 +1286,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
     async function loadRelated() {
       try {
         const all = await dbByIndex("expenses", "userId", user.id);
-        // Proteção: Garante que o filtro funcione mesmo se o card for null
         const cardName = expense.card || "";
         const filtered = all.filter(e => 
           e.card === cardName && 
@@ -1295,7 +1294,7 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
         );
         setRelatedExpenses(filtered);
       } catch (err) {
-        console.error("Erro banco:", err);
+        console.error("Erro ao carregar banco:", err);
       }
       setLoading(false);
     }
@@ -1303,18 +1302,17 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   }, [expense.card, user.id]);
 
   const handleProcess = async () => {
-    // 1. Tratamento rigoroso do valor
-    const rawValue = String(payAmount).replace(",", ".");
-    const totalToPay = Number(parseFloat(rawValue).toFixed(2));
+    // 1. Conversão e Validação Rigorosa
+    const totalToPay = Number(parseFloat(String(payAmount).replace(",", ".")).toFixed(2));
     
-    if (!totalToPay || totalToPay <= 0) return alert("Digite um valor válido.");
+    if (isNaN(totalToPay) || totalToPay <= 0) return alert("Digite um valor válido.");
     if (!selChecking) return alert("Selecione a conta de saída.");
-    if (selectedIds.length === 0) return alert("Selecione um item.");
+    if (selectedIds.length === 0) return alert("Selecione um item da lista.");
 
     try {
       let pool = totalToPay;
       
-      // 2. Processamento sequencial
+      // 2. Processamento Serial para Integridade do IndexedDB
       for (const id of selectedIds) {
         if (pool <= 0) break;
 
@@ -1324,16 +1322,18 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
         const deduct = Math.min(item.amount, pool);
         const remaining = Number((item.amount - deduct).toFixed(2));
 
-        // 3. Limpeza do objeto (Essencial para não dar Erro Técnico)
+        // 3. SANITIZAÇÃO: Remove campos fantasmas como '_tipo'
         const cleanUpdate = {
           id: item.id,
           userId: user.id,
           desc: item.desc,
+          amount: item.amount,
           category: item.category,
           card: item.card,
           date: item.date,
           month: item.month,
           year: item.year,
+          paid: item.paid,
           pagamento: item.pagamento || "Parcelado",
           createdAt: item.createdAt,
           updatedAt: new Date().toISOString()
@@ -1343,25 +1343,26 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
           cleanUpdate.paid = true;
           cleanUpdate.paidAt = new Date().toISOString();
           cleanUpdate.paidFromCard = selChecking;
-          cleanUpdate.amount = item.amount; 
         } else {
-          cleanUpdate.paid = false;
           cleanUpdate.amount = remaining;
-          cleanUpdate.desc = item.desc.includes("(Saldo)") ? item.desc : `${item.desc} (Saldo)`;
+          if (!cleanUpdate.desc.includes("(Saldo)")) {
+            cleanUpdate.desc = `${cleanUpdate.desc} (Saldo)`;
+          }
         }
 
+        // Usa dbPut para garantir a substituição correta
         await dbPut("expenses", cleanUpdate);
         pool = Number((pool - deduct).toFixed(2));
       }
 
-      // 4. Registro ÚNICO de débito (Correção do split('T'))
+      // 4. Registro ÚNICO de Débito (Correção do Split de Data)
       const today = new Date().toISOString().split('T');
       await dbAdd("expenses", {
         userId: user.id,
-        desc: `Pagto Parcial: ${expense.card || 'Débito'}`,
+        desc: `Pagto Parcial: ${expense.card || 'Cartão'}`,
         amount: totalToPay,
         category: "Pagamento",
-        card: selChecking, // O 'cartão' deste registro é a conta que pagou
+        card: expense.card,
         paidFromCard: selChecking,
         date: today,
         month: new Date().getMonth() + 1,
@@ -1372,14 +1373,22 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
         createdAt: new Date().toISOString()
       });
 
+      // 5. Atualização de Saldo da Conta Corrente
+      const cc = cards.find(c => c.name === selChecking);
+      if (cc && cc.balance != null) {
+        await dbPut("cards", { 
+          ...cc, 
+          balance: Number((cc.balance - totalToPay).toFixed(2)) 
+        });
+      }
+
       onSaved(); 
     } catch (err) {
-      console.error("Erro técnico detalhado:", err);
-      alert("Erro ao gravar no banco. Verifique o console.");
+      console.error("ERRO INDEXEDDB:", err);
+      alert("Falha técnica ao gravar no banco. Verifique se o objeto contém campos inválidos.");
     }
   };
 
-  // ... (Resto do componente UI permanece igual)
   return React.createElement("div", { 
     style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' } 
   },
@@ -1388,7 +1397,7 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
     },
       React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 20 } },
         React.createElement("span", { style: { fontWeight: 900, fontSize: 18, color: '#32336e' } }, "Baixa Parcial"),
-        React.createElement("button", { onClick: onClose, style: { border: 'none', background: '#F5F5F5', borderRadius: 20, width: 32, height: 32, fontWeight: 'bold' } }, "✕")
+        React.createElement("button", { onClick: onClose, style: { border: 'none', background: '#F5F5F5', borderRadius: 20, width: 32, height: 32 } }, "✕")
       ),
       React.createElement("div", { style: { marginBottom: 20 } },
         loading ? React.createElement(Loader) : 
@@ -1398,15 +1407,15 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
             if(selectedIds.includes(ex.id)) setSelectedIds(selectedIds.filter(id => id !== ex.id));
             else setSelectedIds([...selectedIds, ex.id]);
           },
-          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '15px 0', borderBottom: '1px solid #EEE' } 
+          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '15px 0', borderBottom: '1px solid #EEE', cursor: 'pointer' } 
         },
-          React.createElement("input", { type: "checkbox", checked: selectedIds.includes(ex.id), readOnly: true, style: { width: 20, height: 20 } }),
+          React.createElement("input", { type: "checkbox", checked: selectedIds.includes(ex.id), readOnly: true, style: { width: 18, height: 18 } }),
           React.createElement("div", { style: { flex: 1, fontSize: 14, fontWeight: 600 } }, ex.desc),
           React.createElement("div", { style: { fontWeight: 800, color: '#32336e' } }, fmt(ex.amount))
         ))
       ),
       React.createElement("div", { style: { marginBottom: 20 } },
-        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "VALOR DO PAGAMENTO AGORA"),
+        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "VALOR DO PAGAMENTO"),
         React.createElement("input", { 
           type: "number",
           style: { width: '100%', padding: 16, borderRadius: 12, border: '2px solid #32336e', fontSize: 24, fontWeight: 900, marginTop: 8, textAlign: 'center', boxSizing: 'border-box' },

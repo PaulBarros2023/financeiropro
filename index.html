@@ -1081,21 +1081,23 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const [expenses, setExpenses] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados de Filtro
   const [selMonth, setSelMonth] = useState(new Date().getMonth() + 1);
   const [selCard, setSelCard] = useState("Todos");
+  const [selStatus, setSelStatus] = useState("Todos"); // Novo: Todos, Pago, Pendente
   const [sortBy, setSortBy] = useState("date");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Forçamos a busca garantindo que o userId seja EXATO para evitar somas de outros testes
       const [i, e, c] = await Promise.all([
         dbByIndex("incomes", "userId", user.id),
         dbByIndex("expenses", "userId", user.id),
         dbByIndex("cards", "userId", user.id)
       ]);
 
-      // FILTRO DE SEGURANÇA: Removemos qualquer item que possa ter vindo sem ID ou corrompido
+      // Purificação de dados: Garante apenas dados do usuário ativo
       setIncomes(i.filter(item => item && item.userId === user.id));
       setExpenses(e.filter(item => item && item.userId === user.id));
       setCards(c.filter(x => x.isCheckingAccount && x.userId === user.id));
@@ -1110,29 +1112,32 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const handleDelete = async (id, type) => {
     if (!confirm("Excluir permanentemente?")) return;
     const store = type === 'inc' ? "incomes" : "expenses";
-    
-    // Deleta e aguarda a confirmação do banco antes de recarregar
     await dbDelete(store, id);
     await logAction(user.id, type === 'inc' ? "income" : "expense", "delete", { id });
-    
-    // Recarga forçada
     load();
     if (onRefresh) onRefresh();
   };
 
-  // CÁLCULO MEMORIZADO (Blindagem contra dados fantasmas)
+  // CÁLCULO MEMORIZADO (Blindagem contra dados fantasmas e aplicação de filtros)
   const data = useMemo(() => {
     const selectedCardObj = cards.find(c => String(c.id) === String(selCard));
 
-    const fInc = incomes.filter(i => 
-      (selMonth === 0 || i.month === selMonth) && 
-      (selCard === "Todos" || String(i.checkingCardId) === String(selCard))
-    );
+    // 1. Filtro de Receitas (Incomes são sempre consideradas 'pagas/recebidas')
+    const fInc = incomes.filter(i => {
+      const matchMonth = selMonth === 0 || i.month === selMonth;
+      const matchCard = selCard === "Todos" || String(i.checkingCardId) === String(selCard);
+      const matchStatus = selStatus === "Todos" || selStatus === "Pago";
+      return matchMonth && matchCard && matchStatus;
+    });
 
-    const fExp = expenses.filter(e => 
-      (selMonth === 0 || e.month === selMonth) && 
-      (selCard === "Todos" || e.card === selectedCardObj?.name || e.paidFromCard === selectedCardObj?.name)
-    );
+    // 2. Filtro de Despesas
+    const fExp = expenses.filter(e => {
+      const matchMonth = selMonth === 0 || e.month === selMonth;
+      const matchCard = selCard === "Todos" || e.card === selectedCardObj?.name || e.paidFromCard === selectedCardObj?.name;
+      const statusValue = e.paid ? "Pago" : "Pendente";
+      const matchStatus = selStatus === "Todos" || selStatus === statusValue;
+      return matchMonth && matchCard && matchStatus;
+    });
 
     const unifiedList = [
       ...fInc.map(i => ({ ...i, _type: 'inc' })),
@@ -1148,7 +1153,7 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
       list: unifiedList,
       availableMonths: [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a)
     };
-  }, [incomes, expenses, cards, selMonth, selCard, sortBy]);
+  }, [incomes, expenses, cards, selMonth, selCard, selStatus, sortBy]);
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, { title: "Histórico Real", onBack }),
@@ -1160,25 +1165,34 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
     },
       data.availableMonths.map(m => {
         const isActive = selMonth === m;
-        const mInc = incomes.filter(i => i.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0);
-        const mExp = expenses.filter(e => e.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0);
+        const mSaldo = incomes.filter(i => i.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0) - 
+                      expenses.filter(e => e.month === m).reduce((a, b) => a + (Number(b.amount) || 0), 0);
         return React.createElement("div", { 
           key: m, onClick: () => setSelMonth(m),
           style: { display: "flex", flexDirection: "column", alignItems: "center", minWidth: 80, cursor: "pointer", borderBottom: isActive ? "3px solid #32336e" : "3px solid transparent", paddingBottom: 8 } 
         },
           React.createElement("span", { style: { fontSize: 13, color: isActive ? "#32336e" : "#999", fontWeight: isActive ? 700 : 500 } }, MONTHS[m - 1]),
-          React.createElement("span", { style: { fontSize: 11, color: isActive ? "#32336e" : "#CCC", fontWeight: 600, marginTop: 4 } }, fmt(mInc - mExp).replace("R$", ""))
+          React.createElement("span", { style: { fontSize: 11, color: isActive ? "#32336e" : "#CCC", fontWeight: 600, marginTop: 4 } }, fmt(mSaldo).replace("R$", ""))
         );
       })
     ),
 
-    /* FILTRO DE CONTAS */
-    cards.length > 0 && React.createElement("div", { style: { padding: "10px 20px 5px", display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
-      React.createElement(Chip, { label: "Todas Contas", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#FF6200" }),
-      cards.map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === String(c.id), onClick: () => setSelCard(String(c.id)), color: "#FF6200" }))
+    /* FILTROS DE CONTA E STATUS (CHIPS) */
+    React.createElement("div", { style: { padding: "10px 20px 5px", display: "flex", flexDirection: "column", gap: 10 } },
+      // Linha de Contas
+      cards.length > 0 && React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
+        React.createElement(Chip, { label: "Todas Contas", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#FF6200" }),
+        cards.map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === String(c.id), onClick: () => setSelCard(String(c.id)), color: "#FF6200" }))
+      ),
+      // Linha de Status
+      React.createElement("div", { style: { display: "flex", gap: 8 } },
+        ["Todos", "Pago", "Pendente"].map(s => 
+          React.createElement(Chip, { key: s, label: s, active: selStatus === s, onClick: () => setSelStatus(s), color: "#32336e" })
+        )
+      )
     ),
 
-    /* RESUMO FINANCEIRO (Soma Limpa) */
+    /* RESUMO FINANCEIRO */
     React.createElement("div", { style: { padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: 'flex', gap: 15 } },
         React.createElement("div", null,

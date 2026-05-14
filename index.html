@@ -650,7 +650,6 @@ function LoginScreen({ onLogin }) {
 }
 
  
-
 function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);
@@ -765,17 +764,17 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
     /* BOTÕES DE ATALHO */
     React.createElement("div", { style: { display: "flex", gap: 12, padding: "15px 20px", overflowX: "auto" }, className: "no-scrollbar" },
       [
-        { icon: "💸", label: "Pagar", screen: "add-expense" },
-        { icon: "💰", label: "Receber", screen: "add-income" },
-        { icon: "📅", label: "Agenda", screen: "calendar" },
-        { icon: "📊", label: "Metas", screen: "goals" },
-        { icon: "🔄", label: "Recorrente", screen: "recurring" }
+        { icon: "despesa.png", label: "Pagar", screen: "add-expense" },
+        { icon: "receita.png", label: "Receber", screen: "add-income" },
+        { icon: "calendario.png", label: "Agenda", screen: "calendar" },
+        { icon: "meta.png", label: "Metas", screen: "goals" },
+        { icon: "recorrente.png", label: "Recorrente", screen: "recurring" }
       ].map((a) => React.createElement("button", { 
         key: a.screen, 
         onClick: () => onNav(a.screen), 
         style: { minWidth: 85, background: "#F2F2F2", border: "none", borderRadius: 16, padding: "15px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" } 
       },
-        React.createElement("span", { style: { fontSize: 22 } }, a.icon),
+        React.createElement("img", { src: a.icon, style: { width: 22, height: 22, objectFit: 'contain' } }),
         React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#333" } }, a.label)
       ))
     ),

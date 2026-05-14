@@ -2292,7 +2292,6 @@ function AgruparScreen({ user, onBack, onSaved, refresh }) {
     )
   );
 }
-
 function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -2308,6 +2307,7 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
         dbByIndex("expenses", "userId", user.id),
         dbByIndex("incomes", "userId", user.id)
       ]);
+      // Filtra apenas contas do tipo "isCheckingAccount"
       setCards(c.filter(x => x.isCheckingAccount));
       setExpenses(e);
       setIncomes(i);
@@ -2324,11 +2324,17 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
   // PROTEÇÃO: Verifica se há contas para evitar quebra do app
   const card = cards.length > 0 ? cards[currentIndex] : null;
   
+  // Filtra despesas pagas vinculadas ao nome desta conta
   const accountExp = card ? expenses.filter(e => e.paid && (e.card === card.name || e.paidFromCard === card.name)) : [];
+  
+  // Filtra receitas (entradas) vinculadas ao ID desta conta corrente específica
   const accountInc = card ? incomes.filter(i => String(i.checkingCardId) === String(card.id)) : [];
 
-  const timeline = [...accountExp.map(e => ({...e, _type: 'exp'})), ...accountInc.map(i => ({...i, _type: 'inc'}))]
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Une receitas e despesas baixadas por data (Fluxo de Caixa)
+  const timeline = [
+    ...accountExp.map(e => ({...e, _type: 'exp'})), 
+    ...accountInc.map(i => ({...i, _type: 'inc'}))
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const renderAccountCard = (c, i) => React.createElement("div", { 
     key: c.id, 
@@ -2387,6 +2393,9 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
         timeline.length === 0 ? React.createElement("div", { style: { textAlign: "center", padding: 40, color: "#999" } }, "Nenhum movimento nesta conta.") :
         timeline.map((item, idx) => {
           const isInc = item._type === 'inc';
+          // Se for receita (inc), usa ícone de dinheiro ou da categoria, senão usa ícone de despesa
+          const icon = isInc ? (catIcon[item.category] || "💰") : (catIcon[item.category] || "💸");
+          
           return React.createElement("div", { key: item.id + item._type, style: { marginBottom: 20 } },
             (idx === 0 || item.date !== timeline[idx-1].date) && React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 12 } }, 
               new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
@@ -2395,11 +2404,11 @@ function CheckingAccountScreen({ user, onBack, onNav, refresh, onRefresh }) {
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
               React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
                 React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: isInc ? "#E1FCEF" : "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, 
-                  isInc ? "💰" : catIcon[item.category] || "💸"
+                  icon
                 ),
                 React.createElement("div", null,
                   React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
-                  React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: isInc ? "#059669" : "#32336e", background: (isInc ? "#059669" : "#32336e") + "15", padding: "2px 6px", borderRadius: 4 } }, isInc ? "RECEBIDO" : "BAIXADO")
+                  React.createElement("span", { style: { fontSize: 9, fontWeight: 800, color: isInc ? "#059669" : "#32336e", background: (isInc ? "#059669" : "#32336e") + "15", padding: "2px 6px", borderRadius: 4 } }, isInc ? "ENTRADA" : "SAÍDA BAIXADA")
                 )
               ),
               React.createElement("div", { style: { fontWeight: 700, color: isInc ? "#059669" : "#000", fontSize: 14 } }, 

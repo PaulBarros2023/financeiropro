@@ -3318,8 +3318,8 @@ function App() {
 
       return React.createElement(React.Fragment, null, 
         sName2 === "dashboard" && React.createElement(DashboardScreen, { user, onNav: setScreen, refresh, dark, onToggleDark: toggleDark }), 
-        sName2 === "add-expense" && React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("ExtractScreen"); } }), 
-        sName2 === "add-income" && React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("ExtractScreen"); } }), 
+        sName2 === "add-expense" && React.createElement(AddExpenseScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("Extract"); } }), 
+        sName2 === "add-income" && React.createElement(AddIncomeScreen, { user, onBack: () => setScreen("dashboard"), onSaved: () => { triggerRefresh(); setScreen("Extract"); } }), 
         sName2 === "edit-expense" && React.createElement(EditExpenseScreen, { user, expenseId: sId, onBack: () => setScreen("history-expense"), onSaved: () => { triggerRefresh(); setScreen("history-expense"); } }), 
         sName2 === "edit-income" && React.createElement(EditIncomeScreen, { user, incomeId: sId, onBack: () => setScreen("history-income"), onSaved: () => { triggerRefresh(); setScreen("history-income"); } }), 
         sName2 === "history-expense" && React.createElement(HistoryExpenseScreen, { user, onBack: () => setScreen("dashboard"), refresh, onRefresh: triggerRefresh, onEditExp: (rec) => setScreen({ id: rec.id, name: "edit-expense" }) }), 

@@ -1082,72 +1082,84 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selMonth, setSelMonth] = useState(new Date().getMonth() + 1);
-  const [selCard, setSelCard] = useState("Todos"); // ID da conta selecionada
+  const [selCard, setSelCard] = useState("Todos");
   const [sortBy, setSortBy] = useState("date");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [i, e, c] = await Promise.all([
-      dbByIndex("incomes", "userId", user.id),
-      dbByIndex("expenses", "userId", user.id),
-      dbByIndex("cards", "userId", user.id)
-    ]);
-    setIncomes(i);
-    setExpenses(e);
-    setCards(c.filter(x => x.isCheckingAccount));
+    try {
+      const [i, e, c] = await Promise.all([
+        dbByIndex("incomes", "userId", user.id),
+        dbByIndex("expenses", "userId", user.id),
+        dbByIndex("cards", "userId", user.id)
+      ]);
+      setIncomes(i);
+      setExpenses(e);
+      setCards(c.filter(x => x.isCheckingAccount));
+    } catch (err) {
+      console.error("Erro ao carregar histórico:", err);
+    }
     setLoading(false);
   }, [user.id]);
 
   useEffect(() => { load(); }, [load, refresh]);
 
   const handleDelete = async (id, type) => {
-    if (!confirm("Excluir este lançamento?")) return;
+    if (!confirm("Excluir este lançamento permanentemente?")) return;
     const store = type === 'inc' ? "incomes" : "expenses";
     await dbDelete(store, id);
     await logAction(user.id, type === 'inc' ? "income" : "expense", "delete", { id });
-    load();
+    load(); // Recarrega os dados do banco
     if (onRefresh) onRefresh();
   };
 
-  const months = [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a);
+  // --- CÁLCULOS BLINDADOS COM USEMEMO ---
+  // Isso garante que o Total Pago NÃO some itens excluídos ou fora do filtro
+  const { totalInc, totalExp, unified, months } = useMemo(() => {
+    const selectedCardObj = cards.find(c => String(c.id) === String(selCard));
 
-  // --- LÓGICA DE FILTRAGEM CORRIGIDA ---
-  
-  // Encontra o objeto da conta selecionada para pegar o Nome e o ID
-  const selectedCardObj = cards.find(c => String(c.id) === String(selCard));
+    // 1. Filtro de Receitas
+    const fInc = incomes.filter((i) => {
+      const matchMonth = selMonth === 0 || i.month === selMonth;
+      const matchCard = selCard === "Todos" || 
+                       String(i.checkingCardId) === String(selCard) || 
+                       i.checkingCardName === selectedCardObj?.name;
+      return matchMonth && matchCard;
+    });
 
-  const filteredInc = incomes.filter((i) => {
-    const matchMonth = selMonth === 0 || i.month === selMonth;
-    const matchCard = selCard === "Todos" || 
-                     String(i.checkingCardId) === String(selCard) || 
-                     i.checkingCardName === selectedCardObj?.name;
-    return matchMonth && matchCard;
-  });
+    // 2. Filtro de Despesas (Saídas)
+    const fExp = expenses.filter((e) => {
+      const matchMonth = selMonth === 0 || e.month === selMonth;
+      const matchCard = selCard === "Todos" || 
+                       e.card === selectedCardObj?.name || 
+                       e.paidFromCard === selectedCardObj?.name;
+      return matchMonth && matchCard;
+    });
 
-  const filteredExp = expenses.filter((e) => {
-    const matchMonth = selMonth === 0 || e.month === selMonth;
-    // Despesas geralmente filtram pelo nome do cartão ou campo paidFromCard
-    const matchCard = selCard === "Todos" || 
-                     e.card === selectedCardObj?.name || 
-                     e.paidFromCard === selectedCardObj?.name;
-    return matchMonth && matchCard;
-  });
+    // 3. Lista Unificada e Ordenada
+    const list = [
+      ...fInc.map(i => ({ ...i, _type: 'inc' })),
+      ...fExp.map(e => ({ ...e, _type: 'exp' }))
+    ].sort((a, b) => {
+      if (sortBy === "amount") return b.amount - a.amount;
+      return new Date(b.date) - new Date(a.date);
+    });
 
-  const unified = [
-    ...filteredInc.map(i => ({ ...i, _type: 'inc' })),
-    ...filteredExp.map(e => ({ ...e, _type: 'exp' }))
-  ].sort((a, b) => {
-    if (sortBy === "amount") return b.amount - a.amount;
-    return new Date(b.date) - new Date(a.date);
-  });
+    // 4. Lista de meses disponíveis
+    const mList = [...new Set([...incomes.map(i => i.month), ...expenses.map(e => e.month)])].sort((a, b) => b - a);
 
-  const totalInc = filteredInc.reduce((a, b) => a + b.amount, 0);
-  const totalExp = filteredExp.reduce((a, b) => a + b.amount, 0);
+    return {
+      totalInc: fInc.reduce((a, b) => a + b.amount, 0),
+      totalExp: fExp.reduce((a, b) => a + b.amount, 0),
+      unified: list,
+      months: mList
+    };
+  }, [incomes, expenses, cards, selMonth, selCard, sortBy]);
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, { title: "Histórico", onBack }),
     
-    /* FILTRO DE MÊS ITAÚ */
+    /* FILTRO DE MÊS ITAÚ (Mês/Valor) */
     React.createElement("div", { 
       style: { display: "flex", gap: 20, overflowX: "auto", padding: "15px 20px", borderBottom: "1px solid #F0F0F0" },
       className: "no-scrollbar"
@@ -1168,30 +1180,19 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
 
     /* FILTRO DE CONTAS (CHIPS) */
     cards.length > 0 && React.createElement("div", { style: { padding: "10px 20px 5px", display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
-      React.createElement(Chip, { 
-        label: "Todas Contas", 
-        active: selCard === "Todos", 
-        onClick: () => setSelCard("Todos"), 
-        color: "#FF6200" 
-      }),
-      cards.map(c => React.createElement(Chip, { 
-        key: c.id, 
-        label: c.name, 
-        active: selCard === String(c.id), 
-        onClick: () => setSelCard(String(c.id)), 
-        color: "#FF6200" 
-      }))
+      React.createElement(Chip, { label: "Todas Contas", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#FF6200" }),
+      cards.map(c => React.createElement(Chip, { key: c.id, label: c.name, active: selCard === String(c.id), onClick: () => setSelCard(String(c.id)), color: "#FF6200" }))
     ),
 
-    /* RESUMO */
+    /* RESUMO FINANCEIRO ATUALIZADO */
     React.createElement("div", { style: { padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: 'flex', gap: 15 } },
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "ENTRADAS"),
+          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "ENTRADAS"),
           React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#059669" } }, "+ " + fmt(totalInc))
         ),
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 10, color: "#999" } }, "SAÍDAS"),
+          React.createElement("div", { style: { fontSize: 10, color: "#999", textTransform: 'uppercase' } }, "SAÍDAS"),
           React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: "#000" } }, "- " + fmt(totalExp))
         )
       ),
@@ -1206,7 +1207,7 @@ function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
 
     loading ? React.createElement(Loader, null) : 
     React.createElement("div", { style: { padding: "0 20px" } },
-      unified.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento") :
+      unified.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#999' } }, "Nenhum lançamento encontrado") :
       unified.map((item, idx) => {
         const isInc = item._type === 'inc';
         const showDate = idx === 0 || item.date !== unified[idx-1].date;

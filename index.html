@@ -814,11 +814,12 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
 }
 function AddExpenseScreen({ user, onBack, onSaved }) {
   const [dbCards, setDbCards] = useState([]);
-  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const today = (new Date()).toISOString().slice(0, 10);
   const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_EXPENSE[0], date: today, card: "", installment: "1" });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [period, setPeriod] = useState(null);
+
   useEffect(() => {
     dbByIndex("cards", "userId", user.id).then((cs) => {
       setDbCards(cs);
@@ -831,6 +832,7 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
       }
     });
   }, [user.id]);
+
   const handleCardChange = (cardName) => {
     const c = dbCards.find((x) => x.name === cardName);
     const autoDate = defaultExpenseDate(c?.dueDay);
@@ -838,12 +840,14 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     setPeriod(p);
     setForm((f) => ({ ...f, card: cardName, date: autoDate }));
   };
+
   const dateOutOfPeriod = period && form.date && (form.date < period.start || form.date > period.end);
+
   const installmentPreview = useMemo(() => {
     const amt = parseFloat(form.amount) || 0;
     if (!amt || !form.date) return [];
     const opt = form.installment;
-    if (opt === "1") return [{ date: form.date, amount: amt, label: "\xC0 vista" }];
+    if (opt === "1") return [{ date: form.date, amount: amt, label: "À vista" }];
     if (opt === "30d") return [{ date: addMonths(form.date, 1), amount: amt, label: "30 dias" }];
     const n = parseInt(opt);
     const val = Math.round(amt / n * 100) / 100;
@@ -854,14 +858,16 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
       label: `${i + 1}/${n}`
     }));
   }, [form.amount, form.date, form.installment]);
+
   const handle = async () => {
     if (!form.desc || !form.amount) return;
     setSaving(true);
     const groupId = `grp_${Date.now()}`;
     const selectedCardObj = dbCards.find((c) => c.name === form.card);
     const isChecking = selectedCardObj?.isCheckingAccount || false;
-    const paidAt = (/* @__PURE__ */ new Date()).toISOString();
-    const installments = isChecking ? [{ date: form.date, amount: parseFloat(form.amount), label: "\xC0 vista" }] : installmentPreview;
+    const paidAt = (new Date()).toISOString();
+    const installments = isChecking ? [{ date: form.date, amount: parseFloat(form.amount), label: "À vista" }] : installmentPreview;
+    
     for (const inst of installments) {
       const rec = {
         desc: installments.length > 1 ? `${form.desc} (${inst.label})` : form.desc,
@@ -869,17 +875,16 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
         category: form.category,
         card: form.card,
         date: inst.date,
-        month: (/* @__PURE__ */ new Date(inst.date + "T12:00:00")).getMonth() + 1,
-        year: (/* @__PURE__ */ new Date(inst.date + "T12:00:00")).getFullYear(),
+        month: (new Date(inst.date + "T12:00:00")).getMonth() + 1,
+        year: (new Date(inst.date + "T12:00:00")).getFullYear(),
         installmentGroup: installments.length > 1 ? groupId : null,
         installmentLabel: inst.label,
         installmentTotal: installments.length,
         paid: isChecking,
-        // auto-baixa conta corrente
         paidAt: isChecking ? paidAt : null,
         paidFromCard: isChecking ? form.card : null,
         userId: user.id,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        createdAt: (new Date()).toISOString()
       };
       const id = await dbAdd("expenses", rec);
       await logAction(user.id, "expense", "create", { ...rec, id });
@@ -892,7 +897,166 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
       onSaved();
     }, 1600);
   };
-  return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 40 } }, /* @__PURE__ */ React.createElement(TopBar, { title: "Nova Despesa", onBack }), /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 20px", display: "flex", flexDirection: "column", gap: 14 } }, saved && /* @__PURE__ */ React.createElement(Toast, { msg: `${installmentPreview.length > 1 ? installmentPreview.length + "x salvas" : "Despesa salva"}!` }), dbCards.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { background: C.yellow + "22", border: `1px solid ${C.yellow}`, borderRadius: 12, padding: 12, color: C.yellow, fontSize: 13 } }, "\u26A0\uFE0F Nenhum cart\xE3o cadastrado. V\xE1 em Cart\xF5es e crie um primeiro!"), /* @__PURE__ */ React.createElement(FormField, { label: "Descri\xE7\xE3o", icon: "\u{1F4DD}" }, /* @__PURE__ */ React.createElement("input", { value: form.desc, onChange: (e) => setForm({ ...form, desc: e.target.value }), placeholder: "Ex: Supermercado", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Valor total (R$)", icon: "\u{1F4B0}" }, /* @__PURE__ */ React.createElement("input", { value: form.amount, onChange: (e) => setForm({ ...form, amount: e.target.value }), type: "number", placeholder: "0,00", style: getInputStyle() })), /* @__PURE__ */ React.createElement(FormField, { label: "Categoria", icon: "\u{1F3F7}\uFE0F" }, /* @__PURE__ */ React.createElement("select", { value: form.category, onChange: (e) => setForm({ ...form, category: e.target.value }), style: getInputStyle() }, CATEGORIES_EXPENSE.map((c) => /* @__PURE__ */ React.createElement("option", { key: c }, c)))), /* @__PURE__ */ React.createElement(FormField, { label: "Cart\xE3o", icon: "\u{1F4B3}" }, /* @__PURE__ */ React.createElement("select", { value: form.card, onChange: (e) => handleCardChange(e.target.value), style: getInputStyle() }, dbCards.length === 0 && /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 sem cart\xF5es \u2014"), dbCards.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.id, value: c.name }, c.name, c.isCheckingAccount ? " \u{1F3E6}" : "")))), !dbCards.find((c) => c.name === form.card)?.isCheckingAccount && /* @__PURE__ */ React.createElement(FormField, { label: "Parcelamento", icon: "\u{1F4CA}" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 2 } }, INSTALLMENT_OPTIONS.map((opt) => /* @__PURE__ */ React.createElement("button", { key: opt.value, onClick: () => setForm({ ...form, installment: opt.value }), style: { padding: "7px 14px", borderRadius: 20, border: `1.5px solid ${form.installment === opt.value ? C.blue : C.border}`, background: form.installment === opt.value ? C.blue + "18" : "#F8FAFC", color: form.installment === opt.value ? C.blue : C.textSec, fontSize: 13, fontWeight: form.installment === opt.value ? 700 : 400, cursor: "pointer" } }, opt.label)))), dbCards.find((c) => c.name === form.card)?.isCheckingAccount && /* @__PURE__ */ React.createElement("div", { style: { background: C.accent + "11", border: `1px solid ${C.accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 16 } }, "\u{1F3E6}"), /* @__PURE__ */ React.createElement("span", { style: { ...T.small, color: C.accentD, fontWeight: 600 } }, "Conta corrente \u2014 despesa ser\xE1 lan\xE7ada como ", /* @__PURE__ */ React.createElement("strong", null, "PAGO"), " automaticamente (\xE0 vista)")), period && /* @__PURE__ */ React.createElement("div", { style: { background: C.blue + "11", border: `1px solid ${C.blue}33`, borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 3 } }, /* @__PURE__ */ React.createElement("span", { style: { color: C.blue, fontSize: 13, fontWeight: 600 } }, "\u{1F4CB} ", period.label), /* @__PURE__ */ React.createElement("span", { style: { color: C.textSec, fontSize: 12 } }, "Janela: ", period.start.slice(8), "/", period.start.slice(5, 7), " at\xE9 ", period.end.slice(8), "/", period.end.slice(5, 7))), /* @__PURE__ */ React.createElement(FormField, { label: "Data da 1\xAA parcela", icon: "\u{1F4C5}" }, /* @__PURE__ */ React.createElement("input", { value: form.date, onChange: (e) => setForm({ ...form, date: e.target.value }), type: "date", style: getInputStyle() })), dateOutOfPeriod && /* @__PURE__ */ React.createElement("div", { style: { background: C.yellow + "22", border: `1px solid ${C.yellow}`, borderRadius: 10, padding: "9px 14px" } }, /* @__PURE__ */ React.createElement("span", { style: { color: C.yellow, fontSize: 12, fontWeight: 600 } }, "\u26A0\uFE0F Data fora da janela de fatura atual.")), installmentPreview.length > 0 && form.amount > 0 && /* @__PURE__ */ React.createElement(SCard, { style: { padding: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } }, "Preview \u2014 ", installmentPreview.length, " lan\xE7amento", installmentPreview.length > 1 ? "s" : ""), installmentPreview.map((inst, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: i < installmentPreview.length - 1 ? `1px solid ${C.border}` : "none" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, color: C.textSec } }, inst.label, " \u2014 ", inst.date.slice(8), "/", inst.date.slice(5, 7), "/", inst.date.slice(0, 4)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: C.red } }, "-", fmt(inst.amount)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTop: `2px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: C.textPri } }, "Total"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 800, color: C.red } }, "-", fmt(parseFloat(form.amount) || 0)))), /* @__PURE__ */ React.createElement(Btn, { label: saving ? "Salvando..." : installmentPreview.length > 1 ? `Salvar ${installmentPreview.length} parcelas` : "Salvar Despesa", color: `linear-gradient(135deg,${C.red},#dc2626)`, onClick: handle, disabled: saving || dbCards.length === 0 })));
+
+  // Estilos Itaú
+  const itauInputStyle = {
+    width: "100%",
+    border: "none",
+    borderBottom: "1.5px solid #DCDCDC",
+    padding: "10px 0px",
+    fontSize: "16px",
+    fontWeight: "500",
+    color: "#32336e",
+    background: "transparent",
+    outline: "none",
+    borderRadius: 0
+  };
+
+  const labelStyle = {
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "#32336e",
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+    marginBottom: "2px",
+    display: "block"
+  };
+
+  return React.createElement("div", { style: { background: "#FFFFFF", minHeight: "100dvh", paddingBottom: 40 } },
+    React.createElement(TopBar, { title: "Nova Despesa", onBack }),
+    
+    React.createElement("div", { style: { padding: "16px 24px", display: "flex", flexDirection: "column", gap: 20 } },
+      saved && React.createElement(Toast, { msg: `${installmentPreview.length > 1 ? installmentPreview.length + "x salvas" : "Despesa salva"}!` }),
+      
+      dbCards.length === 0 && React.createElement("div", { style: { background: "#FFF9F5", border: "1px solid #FFEDD5", borderRadius: 8, padding: 12, color: "#EA580C", fontSize: 13 } }, "⚠️ Nenhum cartão cadastrado. VÁ em Cartões e crie um primeiro!"),
+
+      // Descrição
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Descrição"),
+        React.createElement("input", { 
+          value: form.desc, 
+          onChange: (e) => setForm({ ...form, desc: e.target.value }), 
+          placeholder: "Ex: Supermercado", 
+          style: itauInputStyle 
+        })
+      ),
+
+      // Valor
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Valor total (R$)"),
+        React.createElement("input", { 
+          value: form.amount, 
+          onChange: (e) => setForm({ ...form, amount: e.target.value }), 
+          type: "number", 
+          placeholder: "0,00", 
+          style: { ...itauInputStyle, fontSize: "22px", fontWeight: "800", color: "#32336e" } 
+        })
+      ),
+
+      // Categoria e Cartão (Lado a Lado)
+      React.createElement("div", { style: { display: "flex", gap: 16 } },
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("label", { style: labelStyle }, "Categoria"),
+          React.createElement("select", { 
+            value: form.category, 
+            onChange: (e) => setForm({ ...form, category: e.target.value }), 
+            style: itauInputStyle 
+          }, CATEGORIES_EXPENSE.map((c) => React.createElement("option", { key: c }, c)))
+        ),
+        React.createElement("div", { style: { flex: 1 } },
+          React.createElement("label", { style: labelStyle }, "Cartão"),
+          React.createElement("select", { 
+            value: form.card, 
+            onChange: (e) => handleCardChange(e.target.value), 
+            style: itauInputStyle 
+          }, 
+            dbCards.length === 0 && React.createElement("option", { value: "" }, "— sem cartões —"),
+            dbCards.map((c) => React.createElement("option", { key: c.id, value: c.name }, c.name + (c.isCheckingAccount ? " 🏦" : "")))
+          )
+        )
+      ),
+
+      // Parcelamento (Chips)
+      !dbCards.find((c) => c.name === form.card)?.isCheckingAccount && React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Parcelamento"),
+        React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 } }, 
+          INSTALLMENT_OPTIONS.map((opt) => {
+            const isSelected = form.installment === opt.value;
+            return React.createElement("button", { 
+              key: opt.value, 
+              onClick: () => setForm({ ...form, installment: opt.value }), 
+              style: { 
+                padding: "8px 14px", 
+                borderRadius: "20px", 
+                border: "1.5px solid",
+                borderColor: isSelected ? "#32336e" : "#EAEAEA", 
+                background: isSelected ? "#32336e" : "transparent", 
+                color: isSelected ? "#FFF" : "#666", 
+                fontSize: "12px", 
+                fontWeight: "700", 
+                cursor: "pointer" 
+              } 
+            }, opt.label);
+          })
+        )
+      ),
+
+      // Alertas de Conta Corrente e Período
+      dbCards.find((c) => c.name === form.card)?.isCheckingAccount ? 
+        React.createElement("div", { style: { background: "#F0F9FF", borderRadius: 8, padding: "12px", display: "flex", alignItems: "center", gap: 10, border: "1px solid #BAE6FD" } },
+          React.createElement("span", { style: { fontSize: "16px" } }, "🏦"),
+          React.createElement("span", { style: { fontSize: "12px", color: "#0369A1", fontWeight: "600" } }, "Conta corrente — despesa lançada como PAGO automaticamente.")
+        ) :
+        period && React.createElement("div", { style: { background: "#F8F8F8", borderRadius: 8, padding: "12px", border: "1px solid #EEE" } },
+          React.createElement("div", { style: { color: "#32336e", fontSize: "12px", fontWeight: "700", display: "flex", alignItems: "center", gap: 6 } }, "📋 " + period.label),
+          React.createElement("div", { style: { color: "#999", fontSize: "11px", marginTop: 2 } }, `Janela: ${period.start.slice(8)}/${period.start.slice(5, 7)} até ${period.end.slice(8)}/${period.end.slice(5, 7)}`)
+        ),
+
+      // Data
+      React.createElement("div", null,
+        React.createElement("label", { style: labelStyle }, "Data da 1ª parcela"),
+        React.createElement("input", { 
+          value: form.date, 
+          onChange: (e) => setForm({ ...form, date: e.target.value }), 
+          type: "date", 
+          style: itauInputStyle 
+        }),
+        dateOutOfPeriod && React.createElement("div", { style: { color: "#EA580C", fontSize: "11px", fontWeight: "600", marginTop: 6 } }, "⚠️ Data fora da janela de fatura atual.")
+      ),
+
+      // Preview de Parcelas
+      installmentPreview.length > 0 && form.amount > 0 && React.createElement("div", { style: { background: "#FDFDFD", border: "1px solid #F0F0F0", borderRadius: 12, padding: 16 } },
+        React.createElement("div", { style: { fontSize: "10px", fontWeight: "800", color: "#999", marginBottom: 12, textTransform: "uppercase" } }, `Preview — ${installmentPreview.length} lançamento(s)`),
+        installmentPreview.map((inst, i) => React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < installmentPreview.length - 1 ? "1px solid #F8F8F8" : "none" } },
+          React.createElement("span", { style: { fontSize: "12px", color: "#666" } }, `${inst.label} • ${inst.date.split('-').reverse().join('/')}`),
+          React.createElement("span", { style: { fontSize: "12px", fontWeight: "700", color: "#333" } }, fmt(inst.amount))
+        )),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: "2px solid #EEE" } },
+          React.createElement("span", { style: { fontSize: "13px", fontWeight: "700", color: "#32336e" } }, "Total"),
+          React.createElement("span", { style: { fontSize: "14px", fontWeight: "800", color: "#000" } }, fmt(parseFloat(form.amount) || 0))
+        )
+      ),
+
+      // Botão Salvar
+      React.createElement("button", {
+        onClick: handle,
+        disabled: saving || dbCards.length === 0,
+        style: {
+          width: "100%",
+          padding: "16px",
+          borderRadius: "25px",
+          border: "none",
+          background: saving ? "#CCC" : "#32336e",
+          color: "#FFF",
+          fontSize: "16px",
+          fontWeight: "700",
+          cursor: "pointer",
+          marginTop: 10,
+          boxShadow: "0 4px 12px rgba(50, 51, 110, 0.2)"
+        }
+      }, saving ? "Processando..." : (installmentPreview.length > 1 ? `Salvar ${installmentPreview.length} parcelas` : "Salvar Despesa"))
+    )
+  );
 }
 function AddIncomeScreen({ user, onBack, onSaved }) {
   const [dbCards, setDbCards] = useState([]);

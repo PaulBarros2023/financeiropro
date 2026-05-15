@@ -682,7 +682,7 @@ function LoginScreen({ onLogin }) {
     } 
   }, 
     React.createElement("div", { style: { textAlign: "center" } }, 
-      React.createElement("div", { style: { fontSize: 60, marginBottom: 8 } }, "💰"), 
+      React.createElement("div", { style: { fontSize: 34, marginBottom: 8 } }, ""), 
       React.createElement("h1", { 
         style: { 
           color: "#000", 
@@ -724,7 +724,7 @@ function LoginScreen({ onLogin }) {
             textAlign: "center",
             fontWeight: 500
           } 
-        }, "Bem-vindo de volta! 👋"), 
+        }, "Bem-vindo de volta!"), 
         React.createElement("button", { 
           onClick: handle, 
           disabled: loading, 
@@ -816,7 +816,7 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
         React.createElement("div", null,
           React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#000" } }, user.name),
           /* ID e Email um pouco mais abaixo com marginTop: 6 */
-          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 6, opacity: 0.8 } }, 
+          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 12, opacity: 0.8 } }, 
             `ID: ${String(user.id).padStart(4, '0')} • ${user.email}`
           )
         )
@@ -826,8 +826,8 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
         onClick: () => window.location.reload(), 
         style: { cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } 
       }, 
-        React.createElement("span", { style: { fontSize: 20 } }, "🚪"),
-        React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: "#FF6200" } }, "SAIR")
+        React.createElement("span", { style: { fontSize: 20 } }, ""),
+        React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: "#FF6200" } }, "Sair")
       )
     ),
 

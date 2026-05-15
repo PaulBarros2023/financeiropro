@@ -2671,13 +2671,13 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     ...(selTipo === "todos" || selTipo === "receita" ? baseInc.map((i) => ({ ...i, _tipo: "receita" })) : [])
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // LÓGICA DOS CARDS DE RESUMO
+  // LÓGICA DOS CARDS DE RESUMO SOLICITADA
   const totalEntrada = baseInc.reduce((a, b) => a + b.amount, 0);
-  const totalGeralDespesas = baseExp.reduce((a, b) => a + b.amount, 0);
+  const totalDespesasPeriodo = baseExp.reduce((a, b) => a + b.amount, 0);
   const totalPago = baseExp.filter(e => e.paid).reduce((a, b) => a + b.amount, 0);
   
   const cardSaldo = totalEntrada - totalPago; // Entradas - Pago
-  const cardPendente = totalGeralDespesas - totalPago; // Total despesas - Pago
+  const cardPendente = totalDespesasPeriodo - totalPago; // Total despesas - Pago
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 100 } },
     React.createElement(TopBar, { title: "Extrato", onBack }),
@@ -2691,7 +2691,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* FILTRO DE MESES COM LINHA */
+    /* FILTRO DE MESES COM LINHA (ESTILO ITAÚ) */
     React.createElement("div", { style: { position: 'relative', borderBottom: "1px solid #F0F0F0" } },
       React.createElement("div", { style: { position: 'absolute', top: '55px', left: 0, right: 0, height: '1px', background: '#E0E0E0', zIndex: 1 } }),
       React.createElement("div", { style: { display: "flex", gap: 15, overflowX: "auto", padding: "15px 20px 20px", alignItems: "flex-start", position: 'relative', zIndex: 2 }, className: "no-scrollbar" },
@@ -2704,7 +2704,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
           return React.createElement("div", { key: item.key, onClick: () => setSelPeriod({ m: item.month, y: item.year }), style: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: "90px", cursor: "pointer" } },
             React.createElement("div", { style: { fontSize: "11px", fontWeight: 800, color: isActive ? "#32336e" : "#999", textTransform: "uppercase", marginBottom: 12 } }, item.label),
             React.createElement("div", { style: { width: 12, height: 12, borderRadius: 6, background: isActive ? '#FFF' : '#BDBDBD', border: isActive ? '3px solid #32336e' : 'none', marginBottom: 12, zIndex: 3 } }),
-            React.createElement("div", { style: { padding: "8px 12px", borderRadius: "12px", border: isActive ? "1.5px solid #32336e" : "1px solid #F0F0F0", background: isActive ? "#F5F6FA" : "transparent", textAlign: "center", width: "100%" } },
+            React.createElement("div", { style: { padding: "8px 12px", borderRadius: "12px", border: isActive ? "1.5px solid #32336e" : "0.5px solid #F0F0F0", background: isActive ? "#F5F6FA" : "transparent", textAlign: "center", width: "100%" } },
               React.createElement("div", { style: { fontSize: "12px", fontWeight: 700, color: isActive ? "#32336e" : "#CCC" } }, "R$ " + subValue.toFixed(0))
             )
           );
@@ -2712,7 +2712,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* CARDS DE RESUMO CORRIGIDOS */
+    /* CARDS DE RESUMO */
     React.createElement("div", { style: { padding: "20px 20px 0" } },
       React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
         React.createElement("div", { style: { background: "#F5FDF9", padding: "12px 10px", borderRadius: 16, border: "0.5px solid #E1FCEF" } },
@@ -2730,52 +2730,51 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-   /* LISTAGEM COM EXIBIÇÃO DE CARTÃO ORIGINAL + CONTA DE PAGAMENTO */
-loading ? React.createElement(Loader, null) : 
-React.createElement("div", { style: { padding: "20px" } },
-  unified.map((item, i) => {
-    const isRec = item._tipo === "receita";
-    const showDate = i === 0 || item.date !== unified[i-1].date;
-    const itemColor = isRec ? "#059669" : (item.paid ? "#2563EB" : "#64748b");
+    /* LISTAGEM COM CORES E DETALHES DE CARTÃO/CONTA */
+    loading ? React.createElement(Loader, null) : 
+    React.createElement("div", { style: { padding: "20px" } },
+      unified.map((item, i) => {
+        const isRec = item._tipo === "receita";
+        const showDate = i === 0 || item.date !== unified[i-1].date;
+        // Azul se pago, Cinza se pendente (para despesas)
+        const itemColor = isRec ? "#059669" : (item.paid ? "#2563EB" : "#64748b"); 
 
-    return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
-      showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
-        new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
-      ),
-      React.createElement("div", { style: { padding: "15px 0", borderBottom: "0.5px solid #F0F0F0" } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
-          React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
-            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: itemColor } }, isRec ? "💰" : (catIcon[item.category] || "💸")),
-            React.createElement("div", { style: { flex: 1 } },
-              React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
-              React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4 } }, 
-                // Mostra o mês e o Cartão Original SEMPRE
-                React.createElement("span", null, `${MONTHS[item.month-1]} • ${item.card || 'Sem cartão'}`),
-                // Se estiver pago, adiciona a conta corrente ao lado
-                item.paid && item.paidFromCard && React.createElement("span", { style: { color: "#2563EB", fontWeight: 600 } }, 
-                  ` • pagto via: ${item.paidFromCard}`
+        return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
+          showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
+            new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+          ),
+          React.createElement("div", { style: { padding: "15px 0", borderBottom: "0.5px solid #F0F0F0" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+              React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
+                React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: itemColor } }, isRec ? "💰" : (catIcon[item.category] || "💸")),
+                React.createElement("div", { style: { flex: 1 } },
+                  React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
+                  React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4 } }, 
+                    React.createElement("span", null, `${MONTHS[item.month-1]} • ${item.card || 'Sem cartão'}`),
+                    item.paid && item.paidFromCard && React.createElement("span", { style: { color: "#2563EB", fontWeight: 600 } }, 
+                      ` • pagto via: ${item.paidFromCard}`
+                    )
+                  )
                 )
+              ),
+              React.createElement("div", { style: { textAlign: "right" } },
+                React.createElement("div", { style: { fontWeight: 800, color: itemColor, fontSize: 14 } }, `${isRec ? "+" : "-"} ${fmt(item.amount)}`),
+                React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: itemColor, marginTop: 4 } }, item.paid ? "PAGO" : "ABERTO")
               )
+            ),
+            /* BOTÕES DE AÇÃO RESTAURADOS */
+            React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 } },
+              !isRec && !item.paid && React.createElement(React.Fragment, null,
+                React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "PARCIAL"),
+                React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "BAIXAR")
+              ),
+              React.createElement("button", { onClick: () => isRec ? setScreen({id: item.id, name: "edit-income"}) : setScreen({id: item.id, name: "edit-expense"}), style: { border: "none", background: "none", color: "#94A3B8", fontSize: 11, fontWeight: 700, cursor: 'pointer' } }, "EDITAR"),
+              React.createElement("button", { onClick: () => isRec ? handleDeleteInc(item.id) : handleDeleteExp(item.id), style: { border: "none", background: "none", color: "#EF4444", fontSize: 16, cursor: 'pointer' } }, "🗑")
             )
-          ),
-          React.createElement("div", { style: { textAlign: "right" } },
-            React.createElement("div", { style: { fontWeight: 800, color: itemColor, fontSize: 14 } }, `${isRec ? "+" : "-"} ${fmt(item.amount)}`),
-            React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: itemColor, marginTop: 4 } }, item.paid ? "PAGO" : "ABERTO")
           )
-        ),
-        /* BOTÕES DE AÇÃO */
-        React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 } },
-          !isRec && !item.paid && React.createElement(React.Fragment, null,
-            React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "PARCIAL"),
-            React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "BAIXAR")
-          ),
-          React.createElement("button", { onClick: () => isRec ? setScreen({id: item.id, name: "edit-income"}) : setScreen({id: item.id, name: "edit-expense"}), style: { border: "none", background: "none", color: "#94A3B8", fontSize: 11, fontWeight: 700, cursor: 'pointer' } }, "EDITAR"),
-          React.createElement("button", { onClick: () => isRec ? handleDeleteInc(item.id) : handleDeleteExp(item.id), style: { border: "none", background: "none", color: "#EF4444", fontSize: 16, cursor: 'pointer' } }, "🗑")
-        )
-      )
-    );
-  })
-)
+        );
+      })
+    ),
 
     baixaExp && React.createElement(BaixaTituloModal, { userId: user.id, expense: baixaExp, allExpenses: expenses, cards, onClose: () => setBaixaExp(null), onSaved: () => { setBaixaExp(null); load(); } }),
     baixaParcialExp && React.createElement(PartialPaymentModal, { user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), onClose: () => setBaixaParcialExp(null), onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } })

@@ -809,16 +809,26 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
   });
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 100 } },
-    /* HEADER PADRÃO ITAÚ COM DADOS REAIS */
+    /* HEADER ATUALIZADO: REMOVIDO LUPA/SINO, ADICIONADO SAIR, BAIXADO ID/EMAIL */
     React.createElement("div", { style: { padding: "20px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || "PS"),
+        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || "PB"),
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#000" } }, "Olá, ", user.name.split(" ")),
-          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 2 } }, `ID: ${String(user.id).padStart(4, '0')} • ${user.email}`)
+          React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#000" } }, user.name),
+          /* ID e Email um pouco mais abaixo com marginTop: 6 */
+          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 6, opacity: 0.8 } }, 
+            `ID: ${String(user.id).padStart(4, '0')} • ${user.email}`
+          )
         )
       ),
-      React.createElement("div", { style: { display: "flex", gap: 15, fontSize: 20 } }, "🔍", "🔔")
+      /* Botão Desconectar */
+      React.createElement("div", { 
+        onClick: () => window.location.reload(), 
+        style: { cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } 
+      }, 
+        React.createElement("span", { style: { fontSize: 20 } }, "🚪"),
+        React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: "#FF6200" } }, "SAIR")
+      )
     ),
 
     /* CARD DE SALDO DETALHADO POR BANCO */
@@ -899,7 +909,6 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
         ),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
           React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
-            /* ÍCONE CORRIGIDO PARA ACEITAR IMAGEM DO catIcon */
             React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, overflow: 'hidden' } }, 
                catIcon[e.category] || "💸"
             ),

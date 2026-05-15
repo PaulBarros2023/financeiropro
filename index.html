@@ -2599,7 +2599,13 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
   const [incomes, setIncomes] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selMonth, setSelMonth] = useState((new Date()).getMonth() + 1);
+  
+  // Alterado para armazenar um objeto {m, y} ou string "YYYY-MM" para evitar conflito de anos
+  const [selPeriod, setSelPeriod] = useState({ 
+    m: (new Date()).getMonth() + 1, 
+    y: (new Date()).getFullYear() 
+  });
+  
   const [selCard, setSelCard] = useState("Todos");
   const [selStatus, setSelStatus] = useState("todos");
   const [selTipo, setSelTipo] = useState("despesa");
@@ -2638,35 +2644,41 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     if (onRefresh) onRefresh();
   };
 
-  // Lógica para gerar os meses no estilo Itaú
+  // Lógica de Meses Únicos (Corrige o conflito de 2026/2027)
   const monthFilterItems = useMemo(() => {
     const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
+    const items = [];
     
-    // Lista baseada nos meses presentes no banco + meses próximos
-    const monthsInDb = [...new Set([
-      ...expenses.filter(e => !e.isCheckingDebit).map(e => `${e.year}-${String(e.month).padStart(2, '0')}`),
-      ...incomes.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
-    ])];
+    // Pega todos os períodos existentes no banco
+    const periods = new Set([
+        ...expenses.filter(e => !e.isCheckingDebit).map(e => `${e.year}-${String(e.month).padStart(2, '0')}`),
+        ...incomes.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`),
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    ]);
 
-    // Adiciona o mês atual se não estiver
-    const currentKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    if (!monthsInDb.includes(currentKey)) monthsInDb.push(currentKey);
-
-    return monthsInDb.sort().map(key => {
+    Array.from(periods).sort().forEach(key => {
       const [y, m] = key.split('-').map(Number);
-      const label = y > currentYear ? `${MONTHS[m-1]} ${y}` : MONTHS[m-1];
-      return { month: m, year: y, label, key };
+      items.push({ 
+        month: m, 
+        year: y, 
+        label: y > today.getFullYear() ? `${MONTHS[m-1]} ${y}` : MONTHS[m-1],
+        key 
+      });
     });
+    return items;
   }, [expenses, incomes]);
 
   const cardNames = [...new Set(expenses.filter((e) => !e.isCheckingDebit).map((e) => e.card).filter(Boolean))];
   
+  // FILTRAGEM CORRIGIDA (Compara mês E ano)
   const baseExp = expenses.filter(
-    (e) => !e.isCheckingDebit && (selMonth === 0 || e.month === selMonth) && (selCard === "Todos" || e.card === selCard) && (selStatus === "todos" || (selStatus === "pago" && e.paid) || (selStatus === "pendente" && !e.paid))
+    (e) => !e.isCheckingDebit && 
+    (selPeriod === "tudo" || (e.month === selPeriod.m && e.year === selPeriod.y)) && 
+    (selCard === "Todos" || e.card === selCard) && 
+    (selStatus === "todos" || (selStatus === "pago" && e.paid) || (selStatus === "pendente" && !e.paid))
   );
-  const baseInc = incomes.filter((i) => selMonth === 0 || i.month === selMonth);
+  
+  const baseInc = incomes.filter((i) => selPeriod === "tudo" || (i.month === selPeriod.m && i.year === selPeriod.y));
 
   const unified = [
     ...(selTipo === "todos" || selTipo === "despesa" ? baseExp.map((e) => ({ ...e, _tipo: "despesa" })) : []),
@@ -2679,16 +2691,15 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     return new Date(b.date) - new Date(a.date);
   });
 
-  const monthBaseExp = expenses.filter((e) => !e.isCheckingDebit && (selMonth === 0 || e.month === selMonth));
-  const totalPago = monthBaseExp.filter((e) => e.paid).reduce((a, b) => a + b.amount, 0);
-  const totalPendente = monthBaseExp.filter((e) => !e.paid).reduce((a, b) => a + b.amount, 0);
-  const totalEntrada = incomes.filter((i) => selMonth === 0 || i.month === selMonth).reduce((a, b) => a + b.amount, 0);
+  const totalEntrada = baseInc.reduce((a, b) => a + b.amount, 0);
+  const totalPago = baseExp.filter(e => e.paid).reduce((a, b) => a + b.amount, 0);
+  const totalPendente = baseExp.filter(e => !e.paid).reduce((a, b) => a + b.amount, 0);
   const saldo = totalEntrada - totalPago - totalPendente;
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 100 } },
     React.createElement(TopBar, { title: "Extrato", onBack }),
 
-    /* SELECTOR DE TIPO (ABAS ITAÚ) */
+    /* SELECTOR DE TIPO (ABAS) */
     React.createElement("div", { style: { padding: "10px 20px" } },
       React.createElement("div", { style: { display: "flex", background: "#F2F2F2", borderRadius: 14, padding: 4 } },
         [{ k: "despesa", l: "Saídas" }, { k: "receita", l: "Entradas" }, { k: "todos", l: "Tudo" }].map((t) => 
@@ -2707,181 +2718,118 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* FILTRO DE MESES ESTILO ITAÚ (ROLETINHA HORIZONTAL) */
-    React.createElement("div", { 
-      style: { 
-        display: "flex", 
-        gap: 15, 
-        overflowX: "auto", 
-        padding: "15px 20px", 
-        borderBottom: "1px solid #F0F0F0",
-        alignItems: "center"
-      }, 
-      className: "no-scrollbar" 
-    },
-      React.createElement("div", {
-        onClick: () => setSelMonth(0),
-        style: {
-          padding: "8px 20px",
-          borderRadius: "12px",
-          border: selMonth === 0 ? "2px solid #32336e" : "1px solid #E0E0E0",
-          background: selMonth === 0 ? "#F5F6FA" : "transparent",
-          cursor: "pointer",
-          textAlign: "center",
-          minWidth: "80px",
-          fontWeight: 700,
-          color: selMonth === 0 ? "#32336e" : "#999",
-          fontSize: "14px"
-        }
-      }, "Tudo"),
-      monthFilterItems.map((item) => {
-        const isActive = selMonth === item.month;
-        const subValue = expenses.filter(e => e.month === item.month && e.year === item.year && !e.isCheckingDebit).reduce((a,b) => a+b.amount, 0);
-
-        return React.createElement("div", {
-          key: item.key,
-          onClick: () => setSelMonth(item.month),
+    /* FILTRO DE MESES COM LINHA GRÁFICA (ESTILO ITAÚ) */
+    React.createElement("div", { style: { position: 'relative', borderBottom: "1px solid #F0F0F0" } },
+      // Linha cinza de fundo
+      React.createElement("div", { style: { position: 'absolute', top: '55px', left: 0, right: 0, height: '1px', background: '#E0E0E0', zIndex: 1 } }),
+      
+      React.createElement("div", { 
+        style: { display: "flex", gap: 15, overflowX: "auto", padding: "15px 20px 20px", alignItems: "flex-start", position: 'relative', zIndex: 2 }, 
+        className: "no-scrollbar" 
+      },
+        // Botão Tudo
+        React.createElement("div", {
+          onClick: () => setSelPeriod("tudo"),
           style: {
-            padding: "10px 15px",
-            borderRadius: "16px",
-            border: isActive ? "2px solid #32336e" : "1px solid #F0F0F0",
-            background: isActive ? "#FFF" : "#F9F9F9",
-            cursor: "pointer",
-            textAlign: "center",
-            minWidth: "90px",
-            boxShadow: isActive ? "0 4px 10px rgba(0,0,0,0.05)" : "none",
-            transition: "all 0.2s"
+            padding: "8px 20px", borderRadius: "12px", border: selPeriod === "tudo" ? "1.5px solid #32336e" : "1px solid #E0E0E0",
+            background: selPeriod === "tudo" ? "#FFF" : "#F9F9F9", cursor: "pointer", textAlign: "center", minWidth: "80px"
           }
-        },
-          React.createElement("div", { style: { fontSize: "11px", fontWeight: 800, color: isActive ? "#32336e" : "#999", textTransform: "uppercase" } }, item.label),
-          React.createElement("div", { style: { fontSize: "13px", fontWeight: 700, color: isActive ? "#000" : "#CCC", marginTop: 4 } }, "R$ " + subValue.toFixed(2).replace('.',','))
-        );
-      })
+        }, 
+          React.createElement("div", { style: { fontSize: "12px", fontWeight: 800, color: selPeriod === "tudo" ? "#32336e" : "#999" } }, "Tudo")
+        ),
+
+        // Mapeamento dos meses com a "bolinha" e linha
+        monthFilterItems.map((item) => {
+          const isActive = selPeriod.m === item.month && selPeriod.y === item.year;
+          const subValue = expenses.filter(e => e.month === item.month && e.year === item.year && !e.isCheckingDebit).reduce((a,b) => a+b.amount, 0);
+
+          return React.createElement("div", {
+            key: item.key,
+            onClick: () => setSelPeriod({ m: item.month, y: item.year }),
+            style: {
+              display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: "90px", cursor: "pointer"
+            }
+          },
+            React.createElement("div", { style: { fontSize: "11px", fontWeight: 800, color: isActive ? "#32336e" : "#999", textTransform: "uppercase", marginBottom: 12 } }, item.label),
+            
+            // Bolinha da linha
+            React.createElement("div", { 
+              style: { 
+                width: 12, height: 12, borderRadius: 6, 
+                background: isActive ? '#FFF' : '#BDBDBD', 
+                border: isActive ? '3px solid #32336e' : 'none',
+                marginBottom: 12, zIndex: 3 
+              } 
+            }),
+
+            // Card de valor com borda fina
+            React.createElement("div", {
+              style: {
+                padding: "8px 12px", borderRadius: "12px", border: isActive ? "1.5px solid #32336e" : "1px solid #F0F0F0",
+                background: isActive ? "#F5F6FA" : "transparent", textAlign: "center", width: "100%"
+              }
+            },
+              React.createElement("div", { style: { fontSize: "12px", fontWeight: 700, color: isActive ? "#32336e" : "#CCC" } }, "R$ " + subValue.toFixed(0))
+            )
+          );
+        })
+      )
     ),
 
-    /* OUTROS FILTROS (STATUS / CARTÃO) */
-    React.createElement("div", { style: { padding: "10px 20px 15px", display: "flex", flexDirection: "column", gap: 12 } },
+    /* OUTROS FILTROS */
+    React.createElement("div", { style: { padding: "15px 20px 10px", display: "flex", flexDirection: "column", gap: 12 } },
       (selTipo === "despesa" || selTipo === "todos") && React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
         [{ k: "todos", l: "Tudo" }, { k: "pendente", l: "Pendentes" }, { k: "pago", l: "Pagos" }].map((s) => 
           React.createElement(Chip, { key: s.k, label: s.l, active: selStatus === s.k, onClick: () => setSelStatus(s.k), color: "#32336e" })
         )
-      ),
-
-      (selTipo === "despesa" || selTipo === "todos") && cardNames.length > 1 && React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
-          React.createElement(Chip, { label: "Todos Cartões", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#666" }),
-          cardNames.map((n) => React.createElement(Chip, { key: n, label: n, active: selCard === n, onClick: () => setSelCard(n), color: "#32336e" }))
       )
     ),
 
-    /* CARDS DE RESUMO (GRID) */
+    /* CARDS DE RESUMO */
     React.createElement("div", { style: { padding: "0 20px 20px" } },
       React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
-        React.createElement("div", { style: { background: "#F5FDF9", padding: 15, borderRadius: 16, border: "1px solid #E1FCEF" } },
-          React.createElement("div", { style: { fontSize: 10, color: "#059669", fontWeight: 800, marginBottom: 5 } }, "ENTRADAS"),
+        React.createElement("div", { style: { background: "#F5FDF9", padding: 15, borderRadius: 16, border: "0.5px solid #E1FCEF" } },
+          React.createElement("div", { style: { fontSize: 10, color: "#059669", fontWeight: 800 } }, "ENTRADAS"),
           React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: "#059669" } }, fmt(totalEntrada))
         ),
-        React.createElement("div", { style: { background: "#FFF", padding: 15, borderRadius: 16, border: "1px solid #F0F0F0" } },
-          React.createElement("div", { style: { fontSize: 10, color: "#666", fontWeight: 800, marginBottom: 5 } }, "PAGO"),
-          React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: "#000" } }, fmt(totalPago))
-        ),
-        React.createElement("div", { style: { background: "#FFF9F5", padding: 15, borderRadius: 16, border: "1px solid #FFEDD5" } },
-          React.createElement("div", { style: { fontSize: 10, color: "#EA580C", fontWeight: 800, marginBottom: 5 } }, "PENDENTE"),
-          React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: "#EA580C" } }, fmt(totalPendente))
-        ),
         React.createElement("div", { style: { background: "#32336e", padding: 15, borderRadius: 16 } },
-          React.createElement("div", { style: { fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 800, marginBottom: 5 } }, "SALDO"),
+          React.createElement("div", { style: { fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 800 } }, "SALDO"),
           React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: "#FFF" } }, fmt(saldo))
         )
       )
     ),
 
-    /* LISTAGEM ESTILO EXTRATO BANCÁRIO */
+    /* LISTAGEM */
     loading ? React.createElement(Loader, null) : 
     React.createElement("div", { style: { padding: "0 20px" } },
-      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15 } },
-        React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#999" } }, `${sorted.length} lançamentos`),
-        React.createElement("select", { 
-          value: sortBy, 
-          onChange: (e) => setSortBy(e.target.value),
-          style: { border: "none", background: "none", color: "#32336e", fontWeight: 700, fontSize: 12, cursor: "pointer" }
-        },
-          React.createElement("option", { value: "date" }, "Data"),
-          React.createElement("option", { value: "amount" }, "Valor")
-        )
-      ),
-
-      sorted.length === 0 ? React.createElement("div", { style: { textAlign: 'center', padding: 40, color: '#CCC' } }, "Nada encontrado") :
       sorted.map((item, i) => {
         const isRec = item._tipo === "receita";
         const showDate = i === 0 || item.date !== sorted[i-1].date;
-
         return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
           showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
             new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
           ),
-
-          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #F8F8F8" } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" } },
             React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
-              React.createElement("div", { 
-                style: { 
-                  width: 40, height: 40, borderRadius: 20, 
-                  background: isRec ? "#E1FCEF" : item.paid ? "#F5F5F5" : "#FFF1F2",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18
-                } 
-              }, isRec ? "💰" : item.paid ? (catIcon[item.category] || "💸") : "⏳"),
-              
-              React.createElement("div", { style: { flex: 1 } },
+              React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, isRec ? "💰" : (catIcon[item.category] || "💸")),
+              React.createElement("div", null,
                 React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
-                React.createElement("div", { style: { fontSize: 12, color: "#999", marginTop: 2 } }, 
-                  `${item.category}${!isRec && item.card ? " • " + item.card : ""}`
-                ),
-                !isRec && item.paid && item.paidFromCard && React.createElement("div", { style: { fontSize: 10, color: "#059669", fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 } }, 
-                  React.createElement("span", null, "🏦"), 
-                  `${item.paidFromCard}${item.paymentDate ? " • " + new Date(item.paymentDate + "T12:00:00").toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}) : ""}`
-                )
+                React.createElement("div", { style: { fontSize: 11, color: "#999" } }, item.card || "Lançamento")
               )
             ),
-
             React.createElement("div", { style: { textAlign: "right" } },
-              React.createElement("div", { style: { fontWeight: 800, color: isRec ? "#059669" : "#000", fontSize: 14 } }, 
-                `${isRec ? "+" : "-"} ${fmt(item.amount)}`
-              ),
-              React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 } },
-                !isRec && !item.paid && React.createElement(React.Fragment, null,
-                  React.createElement("button", { 
-                    onClick: () => setBaixaParcialExp(item),
-                    style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } 
-                  }, "PARCIAL"),
-                  React.createElement("button", { 
-                    onClick: () => setBaixaExp(item),
-                    style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } 
-                  }, "BAIXAR")
-                ),
-                React.createElement("button", { 
-                  onClick: () => isRec ? handleDeleteInc(item.id) : handleDeleteExp(item.id),
-                  style: { border: "none", background: "none", color: "#DDD", fontSize: 14, cursor: "pointer" } 
-                }, "🗑")
-              )
+              React.createElement("div", { style: { fontWeight: 800, color: isRec ? "#059669" : "#000", fontSize: 14 } }, `${isRec ? "+" : "-"} ${fmt(item.amount)}`),
+              React.createElement("button", { onClick: () => isRec ? handleDeleteInc(item.id) : handleDeleteExp(item.id), style: { background: "none", border: "none", color: "#DDD", fontSize: 14 } }, "🗑")
             )
           )
         );
       })
     ),
 
-    baixaExp && React.createElement(BaixaTituloModal, { 
-      userId: user.id, expense: baixaExp, allExpenses: expenses, cards, 
-      onClose: () => setBaixaExp(null), 
-      onSaved: () => { setBaixaExp(null); load(); } 
-    }),
-
-    baixaParcialExp && React.createElement(PartialPaymentModal, { 
-      user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), 
-      onClose: () => setBaixaParcialExp(null), 
-      onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } 
-    })
+    baixaExp && React.createElement(BaixaTituloModal, { userId: user.id, expense: baixaExp, allExpenses: expenses, cards, onClose: () => setBaixaExp(null), onSaved: () => { setBaixaExp(null); load(); } }),
+    baixaParcialExp && React.createElement(PartialPaymentModal, { user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), onClose: () => setBaixaParcialExp(null), onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } })
   );
 }
-    
 
 
 // 1. Corrigido: Guardamos apenas o SRC da imagem para evitar erros de inicialização

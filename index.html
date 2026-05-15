@@ -663,7 +663,7 @@ function LoginScreen({ onLogin }) {
   return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 32 } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 60, marginBottom: 8 } }, "\u{1F4B0}"), /* @__PURE__ */ React.createElement("h1", { style: { ...T.h1, color: C.textPri, margin: 0, lineHeight: 1.1, fontSize: 38 } }, "Finan\xE7asPRO"), /* @__PURE__ */ React.createElement("p", { style: { ...T.body, color: C.textSec, marginTop: 10 } }, "Controle total do seu dinheiro")), /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#FFFFFF", borderRadius: 18, border: `1px solid ${C.border}`, padding: 28, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.textSec, fontFamily: "'Inter',sans-serif", textAlign: "center" } }, "Bem-vindo \u{1F44B}"), /* @__PURE__ */ React.createElement("button", { onClick: handle, disabled: loading, style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "15px", borderRadius: 12, background: loading ? "#1e293b" : "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", color: "#1e293b", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15 } }, loading ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, animation: "spin 1s linear infinite", display: "inline-block" } }, "\u27F3"), " Entrando...") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 48 48" }, /* @__PURE__ */ React.createElement("path", { fill: "#EA4335", d: "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" }), /* @__PURE__ */ React.createElement("path", { fill: "#4285F4", d: "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" }), /* @__PURE__ */ React.createElement("path", { fill: "#FBBC05", d: "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" }), /* @__PURE__ */ React.createElement("path", { fill: "#34A853", d: "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" })), "Continuar com Google"))), /* @__PURE__ */ React.createElement("p", { style: { color: C.textMut, fontSize: 12, textAlign: "center", fontFamily: "'Inter',sans-serif" } }, "\u{1F512} Dados salvos localmente no dispositivo")));
 }
 
- function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
+function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [cards, setCards] = useState([]);
@@ -721,7 +721,7 @@ function LoginScreen({ onLogin }) {
     /* HEADER PADRÃO ITAÚ COM DADOS REAIS */
     React.createElement("div", { style: { padding: "20px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || user.name.substring(0, 2).toUpperCase()),
+        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || "PS"),
         React.createElement("div", null,
           React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#000" } }, "Olá, ", user.name.split(" ")),
           React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 2 } }, `ID: ${String(user.id).padStart(4, '0')} • ${user.email}`)
@@ -796,7 +796,7 @@ function LoginScreen({ onLogin }) {
     React.createElement("div", { style: { padding: "10px 20px" } },
       React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
         React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: "#000" } }, "extrato"),
-        React.createElement("button", { onClick: () => onNav("history-expense"), style: { background: "none", border: "none", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "ver tudo")
+        React.createElement("button", { onClick: () => onNav("extract"), style: { background: "none", border: "none", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "ver tudo")
       ),
 
       loading ? React.createElement(Loader, null) : 
@@ -808,7 +808,10 @@ function LoginScreen({ onLogin }) {
         ),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
           React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
-            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 } }, catIcon[e.category] || "💸"),
+            /* ÍCONE CORRIGIDO PARA ACEITAR IMAGEM DO catIcon */
+            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, overflow: 'hidden' } }, 
+               catIcon[e.category] || "💸"
+            ),
             React.createElement("div", null,
               React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, e.desc),
               React.createElement("div", { style: { fontSize: 12, color: "#666" } }, e.card || "Débito em conta")

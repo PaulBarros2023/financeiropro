@@ -660,115 +660,16 @@ function CardModal({ userId, card, onClose, onSaved }) {
 }
 function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
-
   const handle = async () => {
     setLoading(true);
     try {
-      // Implementado com os seus dados reais conforme solicitado
-      const user = await loginOrCreate(
-        "paulosbarros2015@gmail.com", // Seu e-mail real
-        "Paulo De Sousa Barros",      // Seu nome real
-        "PSB"                          // Suas iniciais para o círculo do perfil
-      );
-
-      // Registra a ação de login no banco de dados local
-      await logAction(user.id, "auth", "login", { email: user.email });
-      
-      // Verifica se existem despesas para controle de sincronização/cache
-      const expCount = (await dbByIndex("expenses", "userId", user.id)).length;
-      if (expCount > 0) localStorage.setItem(LS_CNT_KEY, String(expCount));
-      
-      // Passa o usuário autenticado para o estado global do app
+      const user = await loginOrCreate("paulosbarros2015@gmail.com", "Paulo De Sousa Barros", "PSB");
       onLogin(user);
-    } catch (e) {
-      console.error("Erro ao realizar login:", e);
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); setLoading(false); }
   };
-
-  return React.createElement("div", { 
-    style: { 
-      minHeight: "100dvh", 
-      background: "#F0F4F8", 
-      display: "flex", 
-      flexDirection: "column", 
-      alignItems: "center", 
-      justifyContent: "center", 
-      padding: 32, 
-      gap: 32 
-    } 
-  }, 
-    React.createElement("div", { style: { textAlign: "center" } }, 
-      React.createElement("div", { style: { fontSize: 34, marginBottom: 8 } }, ""), 
-      React.createElement("h1", { 
-        style: { 
-          color: "#000", 
-          margin: 0, 
-          lineHeight: 1.1, 
-          fontSize: 38, 
-          fontWeight: 800, 
-          fontFamily: "'Inter', sans-serif" 
-        } 
-      }, "FinançasPRO"), 
-      React.createElement("p", { 
-        style: { 
-          color: "#666", 
-          marginTop: 10, 
-          fontFamily: "'Inter', sans-serif" 
-        } 
-      }, "Controle total do seu dinheiro")
-    ), 
-    React.createElement("div", { 
-      style: { width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16 } 
-    }, 
-      React.createElement("div", { 
-        style: { 
-          background: "#FFFFFF", 
-          borderRadius: 24, 
-          border: "1px solid #E5E7EB", 
-          padding: 28, 
-          display: "flex", 
-          flexDirection: "column", 
-          gap: 16, 
-          boxShadow: "0 10px 25px rgba(0,0,0,0.05)" 
-        } 
-      }, 
-        React.createElement("div", { 
-          style: { 
-            fontSize: 13, 
-            color: "#666", 
-            fontFamily: "'Inter', sans-serif", 
-            textAlign: "center",
-            fontWeight: 500
-          } 
-        }, "Bem-vindo de volta!"), 
-        React.createElement("button", { 
-          onClick: handle, 
-          disabled: loading, 
-          style: { 
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "center", 
-            gap: 12, 
-            padding: "16px", 
-            borderRadius: 14, 
-            background: "#FF6200", 
-            border: "none", 
-            cursor: loading ? "not-allowed" : "pointer", 
-            color: "#FFF", 
-            fontFamily: "'Inter', sans-serif", 
-            fontWeight: 700, 
-            fontSize: 16,
-            transition: "all 0.2s"
-          } 
-        }, 
-          loading ? "Conectando..." : "Acessar minha conta"
-        )
-      )
-    ),
-    React.createElement("p", { 
-      style: { color: "#999", fontSize: 11, textAlign: "center", fontFamily: "'Inter', sans-serif" } 
-    }, "Seus dados estão seguros e salvos localmente")
+  return React.createElement("div", { style: { height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+    React.createElement("button", { onClick: handle, style: { padding: '16px 32px', background: '#FF6200', color: '#FFF', border: 'none', borderRadius: 12, fontWeight: 800 } }, 
+    loading ? "Entrando..." : "Acessar FinançasPRO")
   );
 }
 function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {

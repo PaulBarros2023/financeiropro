@@ -2638,10 +2638,28 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     if (onRefresh) onRefresh();
   };
 
-  const allMonths = [...new Set([
-    ...expenses.filter((e) => !e.isCheckingDebit).map((e) => e.month),
-    ...incomes.map((i) => i.month)
-  ])].sort((a, b) => b - a);
+  // Lógica para gerar os meses no estilo Itaú
+  const monthFilterItems = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+    
+    // Lista baseada nos meses presentes no banco + meses próximos
+    const monthsInDb = [...new Set([
+      ...expenses.filter(e => !e.isCheckingDebit).map(e => `${e.year}-${String(e.month).padStart(2, '0')}`),
+      ...incomes.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
+    ])];
+
+    // Adiciona o mês atual se não estiver
+    const currentKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    if (!monthsInDb.includes(currentKey)) monthsInDb.push(currentKey);
+
+    return monthsInDb.sort().map(key => {
+      const [y, m] = key.split('-').map(Number);
+      const label = y > currentYear ? `${MONTHS[m-1]} ${y}` : MONTHS[m-1];
+      return { month: m, year: y, label, key };
+    });
+  }, [expenses, incomes]);
 
   const cardNames = [...new Set(expenses.filter((e) => !e.isCheckingDebit).map((e) => e.card).filter(Boolean))];
   
@@ -2689,22 +2707,66 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* FILTROS (MÊS / STATUS / CARTÃO) - SEPARADOS */
-    React.createElement("div", { style: { padding: "0 20px 15px", display: "flex", flexDirection: "column", gap: 12 } },
-      // Filtro de Meses
-      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
-        React.createElement(Chip, { label: "Todos", active: selMonth === 0, onClick: () => setSelMonth(0), color: "#FF6200" }),
-        allMonths.map((m) => React.createElement(Chip, { key: m, label: MONTHS[m - 1], active: selMonth === m, onClick: () => setSelMonth(m), color: "#FF6200" }))
-      ),
-      
-      // Filtro de Status (Pendentes/Pagos)
+    /* FILTRO DE MESES ESTILO ITAÚ (ROLETINHA HORIZONTAL) */
+    React.createElement("div", { 
+      style: { 
+        display: "flex", 
+        gap: 15, 
+        overflowX: "auto", 
+        padding: "15px 20px", 
+        borderBottom: "1px solid #F0F0F0",
+        alignItems: "center"
+      }, 
+      className: "no-scrollbar" 
+    },
+      React.createElement("div", {
+        onClick: () => setSelMonth(0),
+        style: {
+          padding: "8px 20px",
+          borderRadius: "12px",
+          border: selMonth === 0 ? "2px solid #32336e" : "1px solid #E0E0E0",
+          background: selMonth === 0 ? "#F5F6FA" : "transparent",
+          cursor: "pointer",
+          textAlign: "center",
+          minWidth: "80px",
+          fontWeight: 700,
+          color: selMonth === 0 ? "#32336e" : "#999",
+          fontSize: "14px"
+        }
+      }, "Tudo"),
+      monthFilterItems.map((item) => {
+        const isActive = selMonth === item.month;
+        const subValue = expenses.filter(e => e.month === item.month && e.year === item.year && !e.isCheckingDebit).reduce((a,b) => a+b.amount, 0);
+
+        return React.createElement("div", {
+          key: item.key,
+          onClick: () => setSelMonth(item.month),
+          style: {
+            padding: "10px 15px",
+            borderRadius: "16px",
+            border: isActive ? "2px solid #32336e" : "1px solid #F0F0F0",
+            background: isActive ? "#FFF" : "#F9F9F9",
+            cursor: "pointer",
+            textAlign: "center",
+            minWidth: "90px",
+            boxShadow: isActive ? "0 4px 10px rgba(0,0,0,0.05)" : "none",
+            transition: "all 0.2s"
+          }
+        },
+          React.createElement("div", { style: { fontSize: "11px", fontWeight: 800, color: isActive ? "#32336e" : "#999", textTransform: "uppercase" } }, item.label),
+          React.createElement("div", { style: { fontSize: "13px", fontWeight: 700, color: isActive ? "#000" : "#CCC", marginTop: 4 } }, "R$ " + subValue.toFixed(2).replace('.',','))
+        );
+      })
+    ),
+
+    /* OUTROS FILTROS (STATUS / CARTÃO) */
+    React.createElement("div", { style: { padding: "10px 20px 15px", display: "flex", flexDirection: "column", gap: 12 } },
       (selTipo === "despesa" || selTipo === "todos") && React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
         [{ k: "todos", l: "Tudo" }, { k: "pendente", l: "Pendentes" }, { k: "pago", l: "Pagos" }].map((s) => 
           React.createElement(Chip, { key: s.k, label: s.l, active: selStatus === s.k, onClick: () => setSelStatus(s.k), color: "#32336e" })
         )
       ),
 
-      // Filtro de Cartões (Somente se houver mais de um)
       (selTipo === "despesa" || selTipo === "todos") && cardNames.length > 1 && React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto" }, className: "no-scrollbar" },
           React.createElement(Chip, { label: "Todos Cartões", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: "#666" }),
           cardNames.map((n) => React.createElement(Chip, { key: n, label: n, active: selCard === n, onClick: () => setSelCard(n), color: "#32336e" }))
@@ -2773,7 +2835,6 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
                 React.createElement("div", { style: { fontSize: 12, color: "#999", marginTop: 2 } }, 
                   `${item.category}${!isRec && item.card ? " • " + item.card : ""}`
                 ),
-                /* LABEL DA CONTA + DATA DO PAGAMENTO */
                 !isRec && item.paid && item.paidFromCard && React.createElement("div", { style: { fontSize: 10, color: "#059669", fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 } }, 
                   React.createElement("span", null, "🏦"), 
                   `${item.paidFromCard}${item.paymentDate ? " • " + new Date(item.paymentDate + "T12:00:00").toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}) : ""}`

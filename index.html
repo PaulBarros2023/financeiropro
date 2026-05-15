@@ -247,89 +247,105 @@ function openDB() {
     req.onerror = () => reject(req.error);
   });
 }
+// --- CONFIGURAÇÃO FIREBASE ---
+// Certifique-se de que as bibliotecas do Firebase estejam no <head> do seu HTML
+// Substitua as informações abaixo pelas chaves do seu projeto no Console do Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyAiNaDNyKxypZBCv3guCPqbwqncJP85kyw",
+  authDomain: "financaspro-75d58.firebaseapp.com",
+  projectId: "financaspro-75d58",
+  storageBucket: "financaspro-75d58.firebasestorage.app",
+  messagingSenderId: "314027029238",
+  appId: "1:314027029238:web:93703f118776a039f732d7",
+  measurementId: "G-4HNJRM9F6V",
+  databaseURL: "https://financaspro-75d58-default-rtdb.firebaseio.com"
+};
+
+// Inicializa Firebase (evita inicializar duplicado)
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const dbRemote = firebase.database();
+
+const LS_UID_KEY = "financaspro_prod_uid";
+const LS_CNT_KEY = "financaspro_prod_exp_count";
+
+// openDB agora apenas retorna sucesso, já que o Firebase inicializa acima
+async function openDB() { return true; }
+
 async function dbAdd(store, rec) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const r = db.transaction(store, "readwrite").objectStore(store).add(rec);
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  const newRef = dbRemote.ref(store).push();
+  const id = newRef.key;
+  const dataWithId = { ...rec, id: id };
+  await newRef.set(dataWithId);
+  return id;
 }
+
 async function dbPut(store, rec) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const r = db.transaction(store, "readwrite").objectStore(store).put(rec);
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  if (!rec.id) throw Error("ID necessário para atualização");
+  await dbRemote.ref(`${store}/${rec.id}`).update(rec);
+  return rec.id;
 }
+
 async function dbDelete(store, id) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const r = db.transaction(store, "readwrite").objectStore(store).delete(id);
-    r.onsuccess = () => res();
-    r.onerror = () => rej(r.error);
-  });
+  await dbRemote.ref(`${store}/${id}`).remove();
+  return true;
 }
+
 async function dbByIndex(store, idx, val) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const r = db.transaction(store, "readonly").objectStore(store).index(idx).getAll(val);
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  const snapshot = await dbRemote.ref(store)
+    .orderByChild(idx)
+    .equalTo(val)
+    .once('value');
+  const data = snapshot.val();
+  return data ? Object.values(data) : [];
 }
+
 async function dbGetAll(store) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const r = db.transaction(store, "readonly").objectStore(store).getAll();
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  const snapshot = await dbRemote.ref(store).once('value');
+  const data = snapshot.val();
+  return data ? Object.values(data) : [];
 }
+
 async function logAction(userId, type, action, payload) {
-  await dbAdd("history_log", { userId, type, action, payload: JSON.stringify(payload), createdAt: (/* @__PURE__ */ new Date()).toISOString() });
-}
-async function loginOrCreate(email, name, avatar) {
-  const savedId = localStorage.getItem(LS_UID_KEY);
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const tx = db.transaction("users", "readwrite");
-    const store = tx.objectStore("users");
-    if (savedId) {
-      const byId = store.get(parseInt(savedId));
-      byId.onsuccess = () => {
-        if (byId.result) {
-          res(byId.result);
-          return;
-        }
-        const rec = { id: parseInt(savedId), email, name, avatar, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
-        const put = store.put(rec);
-        put.onsuccess = () => res(rec);
-        put.onerror = () => rej(put.error);
-      };
-      byId.onerror = () => rej(byId.error);
-      return;
-    }
-    const byEmail = store.index("email").get(email);
-    byEmail.onsuccess = () => {
-      if (byEmail.result) {
-        localStorage.setItem(LS_UID_KEY, String(byEmail.result.id));
-        res(byEmail.result);
-        return;
-      }
-      const a = store.add({ email, name, avatar, createdAt: (/* @__PURE__ */ new Date()).toISOString() });
-      a.onsuccess = () => {
-        localStorage.setItem(LS_UID_KEY, String(a.result));
-        store.get(a.result).onsuccess = (ev) => res(ev.target.result);
-      };
-      a.onerror = () => rej(a.error);
-    };
-    byEmail.onerror = () => rej(byEmail.error);
+  await dbAdd("history_log", { 
+    userId, type, action, 
+    payload: JSON.stringify(payload), 
+    createdAt: (new Date()).toISOString() 
   });
 }
+
+async function loginOrCreate(email, name, avatar) {
+  const snapshot = await dbRemote.ref("users")
+    .orderByChild("email")
+    .equalTo(email)
+    .once('value');
+  
+  const data = snapshot.val();
+  if (data) {
+    const user = Object.values(data);
+    localStorage.setItem(LS_UID_KEY, String(user.id));
+    return user;
+  } else {
+    const newUser = { 
+      email, 
+      name, 
+      avatar, 
+      createdAt: (new Date()).toISOString() 
+    };
+    const id = await dbAdd("users", newUser);
+    const userWithId = { ...newUser, id: id };
+    // Atualiza o registro com o ID gerado para consistência
+    await dbPut("users", userWithId);
+    localStorage.setItem(LS_UID_KEY, String(id));
+    return userWithId;
+  }
+}
+
+// --- LÓGICA DE PERÍODOS (MANTIDA ORIGINAL) ---
+
 function billingPeriod(dueDay) {
-  const today = /* @__PURE__ */ new Date();
+  const today = new Date();
   const todayDay = today.getDate();
   const todayMonth = today.getMonth();
   const todayYear = today.getFullYear();
@@ -367,6 +383,7 @@ function billingPeriod(dueDay) {
   const label = `Fatura ${MONTHS[dueMonth]}/${dueYear}`;
   return { start: startStr, end: endStr, label, dueDay, dueMonth, dueYear };
 }
+
 function billingPeriods(dueDay, count = 8) {
   const periods = [];
   const current = billingPeriod(dueDay);
@@ -2834,6 +2851,7 @@ const navItems = [
 ];
 
 function BottomNav({ active, onNav }) {
+  // Prevenção de erro caso active seja nulo
   const screenName = typeof active === "string" ? active : active?.name || "dashboard";
 
   return React.createElement("div", { 
@@ -2848,6 +2866,7 @@ function BottomNav({ active, onNav }) {
     },
     className: "no-scrollbar"
   }, navItems.map((n) => {
+    // Lógica para marcar como ativo mesmo em sub-telas de edição/adição
     const isActive = screenName === n.id || 
                      (["add-expense", "edit-expense"].includes(screenName) && n.id === "history-expense") || 
                      (["add-income", "edit-income"].includes(screenName) && n.id === "history-income") ||
@@ -2857,12 +2876,12 @@ function BottomNav({ active, onNav }) {
       key: n.id, 
       onClick: () => onNav(n.id), 
       style: { 
-        flex: "0 0 72px", 
+        flex: "0 0 72px", // Fixa a largura para o scroll horizontal funcionar
         background: "none", border: "none", cursor: "pointer", 
         display: "flex", flexDirection: "column", alignItems: "center", gap: 4 
       } 
     }, 
-      // 2. Implementado: O elemento de imagem é criado aqui dentro, usando o caminho do array
+      // Container do Ícone (Imagem com filtro para efeito inativo)
       React.createElement("div", { 
         style: { 
           width: 24, 
@@ -2870,6 +2889,7 @@ function BottomNav({ active, onNav }) {
           display: "flex", 
           alignItems: "center", 
           justifyContent: "center",
+          // Se não estiver ativo, a imagem fica cinza. Se ativo, cor original.
           filter: isActive ? "none" : "grayscale(100%)",
           opacity: isActive ? 1 : 0.6,
           transition: "all 0.2s"
@@ -2881,6 +2901,7 @@ function BottomNav({ active, onNav }) {
         })
       ), 
       
+      // Texto do Menu (Label)
       React.createElement("span", { 
         style: { 
           fontSize: 10, 
@@ -3430,6 +3451,8 @@ function App() {
   const [dark, setDark] = useState(() => localStorage.getItem(LS_DARK_KEY) === "1");
   const triggerRefresh = () => setRefresh((r) => r + 1);
 
+  // Define o tema global baseado no estado dark
+  // Isso garante que a variável C (usada nos estilos) seja atualizada online
   C = dark ? THEMES.dark : THEMES.light;
   const bg = C.bg;
 
@@ -3445,12 +3468,14 @@ function App() {
   // Define se a barra de navegação inferior deve aparecer
   const showNav = !["add-expense", "add-income", "sync", "edit-expense", "edit-income", "goals", "recurring"].includes(sName);
 
+  // Se não houver usuário, renderiza a tela de login
   if (!user) return React.createElement(React.Fragment, null, 
     React.createElement("link", { href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap", rel: "stylesheet" }), 
     React.createElement("style", null, `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}*{-webkit-tap-highlight-color:transparent;font-family:'Inter',sans-serif}select,input{color-scheme:${dark ? "dark" : "light"};font-family:'Inter',sans-serif}body{background:${bg}}`), 
     React.createElement(LoginScreen, { onLogin: setUser, dark })
   );
 
+  // Container principal do App conectado ao Firebase
   return React.createElement("div", { style: { maxWidth: 430, margin: "0 auto", background: bg, minHeight: "100dvh" } }, 
     (() => {
       switch (sName) {

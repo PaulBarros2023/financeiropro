@@ -643,26 +643,54 @@ function CardModal({ userId, card, onClose, onSaved }) {
 }
 function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
+
   const handle = async () => {
     setLoading(true);
     try {
-      const user = await loginOrCreate("usuario@gmail.com", "Meu Usu\xE1rio", "EU");
+      // IMPLEMENTADO COM SEUS DADOS REAIS
+      const user = await loginOrCreate(
+        "paulosbarros2015@gmail.com", // Seu e-mail real
+        "Paulo De Sousa Barros",      // Seu nome real
+        "PB"                          // Suas iniciais para o círculo do perfil
+      );
+
       await logAction(user.id, "auth", "login", { email: user.email });
+      
       const expCount = (await dbByIndex("expenses", "userId", user.id)).length;
       const prevCount = parseInt(localStorage.getItem(LS_CNT_KEY) || "0");
-      if (prevCount > 0 && expCount === 0) {
-        console.warn("\u26A0\uFE0F Dados podem ter sido perdidos. Contagem anterior:", prevCount, "Atual:", expCount);
-      }
+
       if (expCount > 0) localStorage.setItem(LS_CNT_KEY, String(expCount));
+      
       onLogin(user);
     } catch (e) {
       console.error(e);
       setLoading(false);
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 32 } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 60, marginBottom: 8 } }, "\u{1F4B0}"), /* @__PURE__ */ React.createElement("h1", { style: { ...T.h1, color: C.textPri, margin: 0, lineHeight: 1.1, fontSize: 38 } }, "Finan\xE7asPRO"), /* @__PURE__ */ React.createElement("p", { style: { ...T.body, color: C.textSec, marginTop: 10 } }, "Controle total do seu dinheiro")), /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#FFFFFF", borderRadius: 18, border: `1px solid ${C.border}`, padding: 28, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.textSec, fontFamily: "'Inter',sans-serif", textAlign: "center" } }, "Bem-vindo \u{1F44B}"), /* @__PURE__ */ React.createElement("button", { onClick: handle, disabled: loading, style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "15px", borderRadius: 12, background: loading ? "#1e293b" : "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", color: "#1e293b", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15 } }, loading ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, animation: "spin 1s linear infinite", display: "inline-block" } }, "\u27F3"), " Entrando...") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 48 48" }, /* @__PURE__ */ React.createElement("path", { fill: "#EA4335", d: "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" }), /* @__PURE__ */ React.createElement("path", { fill: "#4285F4", d: "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" }), /* @__PURE__ */ React.createElement("path", { fill: "#FBBC05", d: "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" }), /* @__PURE__ */ React.createElement("path", { fill: "#34A853", d: "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" })), "Continuar com Google"))), /* @__PURE__ */ React.createElement("p", { style: { color: C.textMut, fontSize: 12, textAlign: "center", fontFamily: "'Inter',sans-serif" } }, "\u{1F512} Dados salvos localmente no dispositivo")));
-}
 
+  return React.createElement("div", { 
+    style: { minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 32 } 
+  }, 
+    React.createElement("div", { style: { textAlign: "center" } }, 
+      React.createElement("div", { style: { fontSize: 60, marginBottom: 8 } }, "💰"), 
+      React.createElement("h1", { style: { ...T.h1, color: C.textPri, margin: 0, lineHeight: 1.1, fontSize: 38 } }, "FinançasPRO"), 
+      React.createElement("p", { style: { ...T.body, color: C.textSec, marginTop: 10 } }, "Controle total do seu dinheiro")
+    ), 
+    React.createElement("div", { style: { width: "100%", maxWidth: 320, display: "flex", flexDirection: "column", gap: 16 } }, 
+      React.createElement("div", { style: { background: "#FFFFFF", borderRadius: 18, border: `1px solid ${C.border}`, padding: 28, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.08)" } }, 
+        React.createElement("div", { style: { fontSize: 13, color: C.textSec, fontFamily: "'Inter',sans-serif", textAlign: "center" } }, "Bem-vindo 👋"), 
+        React.createElement("button", { 
+          onClick: handle, 
+          disabled: loading, 
+          style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "15px", borderRadius: 12, background: "#FF6200", border: "none", cursor: loading ? "not-allowed" : "pointer", color: "#FFF", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 15 } 
+        }, 
+          loading ? "Entrando..." : "Acessar minha conta"
+        )
+      )
+    ),
+    React.createElement("p", { style: { color: C.textMut, fontSize: 12, textAlign: "center", fontFamily: "'Inter',sans-serif" } }, "🔒 Dados salvos localmente no dispositivo")
+  );
+}
 function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);

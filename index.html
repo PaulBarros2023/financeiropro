@@ -1358,21 +1358,21 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
   const [selected, setSelected] = useState(initialSel);
   const [selChecking, setSelChecking] = useState(checkingCards[0]?.id || null);
   const [saving, setSaving] = useState(false);
-
+ 
   const toggleAll = () => {
     if (selected.size === allPending.length) setSelected(new Set());
     else setSelected(new Set(allPending.map((e) => e.id)));
   };
-
+ 
   const toggleOne = (id) => {
     const s = new Set(selected);
     s.has(id) ? s.delete(id) : s.add(id);
     setSelected(s);
   };
-
+ 
   const toBaixar = allPending.filter((e) => selected.has(e.id));
   const total = toBaixar.reduce((a, b) => a + b.amount, 0);
-
+ 
   const handle = async () => {
     if (!selChecking || toBaixar.length === 0) return;
     const cc = checkingCards.find((c) => c.id === selChecking);
@@ -1406,11 +1406,11 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
     setSaving(false);
     onSaved();
   };
-
+ 
   return React.createElement(
     "div",
     {
-      style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 300, display: "flex", alignItems: "flex-end" },
+      style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 1100, display: "flex", alignItems: "flex-end" },
       onClick: onClose
     },
     React.createElement(
@@ -1430,7 +1430,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
           // SEM overflow aqui — o scroll fica só no corpo interno
         }
       },
-
+ 
       /* ── CORPO SCROLLÁVEL ── */
       React.createElement(
         "div",
@@ -1444,7 +1444,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
             gap: 14
           }
         },
-
+ 
         /* Cabeçalho */
         React.createElement(
           "div",
@@ -1452,7 +1452,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Baixar Títulos"),
           React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", color: C.textMut, fontSize: 22, cursor: "pointer" } }, "✕")
         ),
-
+ 
         /* Resumo do cartão */
         React.createElement(
           "div",
@@ -1470,7 +1470,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
             React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.red } }, selected.size, " / ", allPending.length)
           )
         ),
-
+ 
         /* Lista de despesas */
         React.createElement(
           "div",
@@ -1545,7 +1545,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
             React.createElement("span", { style: { fontSize: 16, fontWeight: 800, color: C.red } }, "-", fmt(total))
           )
         ),
-
+ 
         /* Seleção de conta corrente */
         checkingCards.length === 0
           ? React.createElement("div", { style: { background: C.red + "11", border: `1px solid ${C.red}33`, borderRadius: 12, padding: 12, color: C.red, fontSize: 13 } },
@@ -1581,14 +1581,14 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
               )
             )
       ), // fim do corpo scrollável
-
+ 
       /* ── RODAPÉ FIXO — botão SEMPRE visível ── */
       checkingCards.length > 0 && React.createElement(
         "div",
         {
           style: {
             padding: "12px 20px",
-            paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+            paddingBottom: "max(calc(env(safe-area-inset-bottom) + 65px), 80px)",
             borderTop: "0.5px solid #F0F0F0",
             background: "#fff"
           }
@@ -1603,6 +1603,7 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
     )
   );
 }
+
 function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
   const [expenses, setExpenses] = useState([]);
   const [cards, setCards] = useState([]);

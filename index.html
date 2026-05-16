@@ -2155,6 +2155,11 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
   useEffect(() => { load(); }, [load, refresh]);
 
+  // Reseta índice se sair dos limites
+  useEffect(() => {
+    if (cards.length > 0 && currentIndex >= cards.length) setCurrentIndex(0);
+  }, [cards.length, currentIndex]);
+
   const handleDeleteCard = async (id) => {
     if (!window.confirm("Excluir este cartão?")) return;
     await dbDelete("cards", id);
@@ -2372,7 +2377,8 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     );
   };
 
-  const currentCard = cards[currentIndex];
+  const safeIndex = Math.min(currentIndex, Math.max(0, cards.length - 1));
+  const currentCard = cards[safeIndex] || null;
 
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, {
@@ -2424,7 +2430,6 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     baixaCard && React.createElement(BaixaModal, { userId: user.id, creditCard: baixaCard, checkingCards, expenses, onClose: () => setBaixaCard(null), onSaved: handleBaixaSaved })
   );
 }
-
     
 function ComparisonScreen({ user, onBack, refresh }) {
   const [expenses, setExpenses] = useState([]);

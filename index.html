@@ -2175,32 +2175,33 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
   /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
   const renderCreditLancamentos = (card) => {
-    // Todas despesas do cartão exceto débitos de conta corrente
-    const cardExp = expenses.filter(e => e.card === card.name && !e.isCheckingDebit);
+    // Todas despesas do cartão exceto débitos de conta corrente — blindado contra dados nulos
+    const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
     if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
     // Agrupa por data de lançamento
     const byDate = {};
     cardExp.forEach(e => {
-      const key = e.date;
+      const key = e.date || "1970-01-01";
       if (!byDate[key]) byDate[key] = [];
       byDate[key].push(e);
     });
 
     const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
-    return sortedDates.map(date =>
-      React.createElement("div", { key: date, style: { marginBottom: 20 } },
+    return sortedDates.map(date => {
+      const safeDate = date && date !== "1970-01-01" ? date : null;
+      return React.createElement("div", { key: date, style: { marginBottom: 20 } },
         /* Label da data */
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-          new Date(date + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })
+          safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
         ),
         byDate[date].map(e =>
           React.createElement("div", { key: e.id,
             style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" }
           },
             React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
-              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc),
+              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
               React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
                 /* Status badge */
                 React.createElement("span", { style: {
@@ -2210,7 +2211,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
                 }}, e.paid ? "PAGO" : "PENDENTE"),
                 /* Data de pagamento se pago */
                 e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                  "Pago em " + new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                  "Pago em " + (e.paidAt ? new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "")
                 ),
                 /* Conta que pagou */
                 e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
@@ -2220,7 +2221,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             ),
             React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
               React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: e.paid ? "#2563EB" : C.textPri } },
-                "- " + fmt(e.amount)
+                "- " + fmt(e.amount || 0)
               )
             )
           )
@@ -2233,21 +2234,21 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const renderCheckingLancamentos = (card) => {
     // Receitas da conta
     const cardIncomes = incomes
-      .filter(i => i.card === card.name || i.account === card.name)
-      .map(i => ({ ...i, _tipo: "receita", _sortDate: i.date }));
+      .filter(i => i && (i.card === card.name || i.account === card.name))
+      .map(i => ({ ...i, _tipo: "receita", _sortDate: i.date || "1970-01-01" }));
 
     // Débitos baixados nessa conta (isCheckingDebit)
     const debits = expenses
-      .filter(e => e.isCheckingDebit && e.card === card.name)
-      .map(e => ({ ...e, _tipo: "debito", _sortDate: e.date }));
+      .filter(e => e && e.isCheckingDebit && e.card === card.name)
+      .map(e => ({ ...e, _tipo: "debito", _sortDate: e.date || "1970-01-01" }));
 
     // Despesas avista pagas nessa conta (paidFromCard === card.name, não é débito de conta)
     const paidHere = expenses
-      .filter(e => !e.isCheckingDebit && e.paid && e.paidFromCard === card.name)
-      .map(e => ({ ...e, _tipo: "pago_avista", _sortDate: e.paidAt ? e.paidAt.slice(0, 10) : e.date }));
+      .filter(e => e && !e.isCheckingDebit && e.paid && e.paidFromCard === card.name)
+      .map(e => ({ ...e, _tipo: "pago_avista", _sortDate: e.paidAt ? e.paidAt.slice(0, 10) : (e.date || "1970-01-01") }));
 
     const all = [...cardIncomes, ...debits, ...paidHere]
-      .sort((a, b) => b._sortDate.localeCompare(a._sortDate));
+      .sort((a, b) => (b._sortDate || "").localeCompare(a._sortDate || ""));
 
     if (all.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
@@ -2261,10 +2262,11 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
     const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
-    return sortedDates.map(date =>
-      React.createElement("div", { key: date, style: { marginBottom: 20 } },
+    return sortedDates.map(date => {
+      const safeDate = date && date !== "1970-01-01" ? date : null;
+      return React.createElement("div", { key: date, style: { marginBottom: 20 } },
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-          new Date(date + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })
+          safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
         ),
         byDate[date].map((item, idx) => {
           const isReceita = item._tipo === "receita";
@@ -2279,14 +2281,14 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
             style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" }
           },
             React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
-              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc),
+              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
               React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
                 React.createElement("span", { style: {
                   fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
                   background: labelBg, color: labelColor
                 }}, label),
                 item.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                  new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                  (item.paidAt ? new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "")
                 ),
                 !isReceita && !isDebito && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
                   "cartão " + item.card
@@ -2294,7 +2296,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
               )
             ),
             React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color, flexShrink: 0 } },
-              signal + " " + fmt(item.amount)
+              signal + " " + fmt(item.amount || 0)
             )
           );
         })
@@ -2305,12 +2307,12 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   /* ── RENDER DO CARD VISUAL ── */
   const renderCard = (card, index, isChecking) => {
     const cardExp = expenses.filter(e => e.card === card.name && !e.isCheckingDebit);
-    const totalPending = cardExp.filter(e => !e.paid).reduce((a, b) => a + b.amount, 0);
+    const totalPending = cardExp.filter(e => e && !e.paid).reduce((a, b) => a + (b.amount || 0), 0);
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
     const flagImg = flagIcons[card.flag] || flagIcons["Outros"];
 
     return React.createElement("div", { key: card.id,
-      style: { minWidth: "100%", flexShrink: 0, scrollSnapAlign: "center", scrollSnapStop: "always", padding: "0 10px", boxSizing: "border-box" }
+      style: { minWidth: "100%", flexShrink: 0, scrollSnapAlign: "center", scrollSnapStop: "always", padding: "0 16px", boxSizing: "border-box" }
     },
       /* VISUAL DO CARTÃO */
       React.createElement("div", {
@@ -2354,12 +2356,12 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
               React.createElement("div", { style: { height: 1, background: C.border, margin: "20px 0" } }),
               React.createElement("div", { style: { display: "flex", justifyContent: "space-between", color: C.textPri } },
                 React.createElement("span", { style: { fontSize: 14, fontWeight: 500 } }, "Limite disponível"),
-                React.createElement("span", { style: { fontSize: 14, fontWeight: 700 } }, fmt(card.limit - totalPending), " ›")
+                React.createElement("span", { style: { fontSize: 14, fontWeight: 700 } }, fmt((card.limit || 0) - totalPending), " ›")
               )
             )
           : React.createElement("div", null,
               React.createElement("div", { style: { fontSize: 13, color: C.textSec } }, "Saldo atual"),
-              React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.accent } }, fmt(card.balance || 0))
+              React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.accent } }, fmt(Number(card.balance) || 0))
             ),
 
         /* BOTÕES DE AÇÃO */
@@ -2398,11 +2400,15 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
       /* CARROSSEL */
       React.createElement("div", {
-        onScroll: (e) => {
-          const container = e.target;
-          const width = container.offsetWidth;
-          const index = Math.round(container.scrollLeft / width);
-          if (index !== currentIndex && index >= 0 && index < cards.length) setCurrentIndex(index);
+        ref: (el) => {
+          if (!el) return;
+          el.onscrollend = () => {
+            const width = el.offsetWidth;
+            if (width === 0) return;
+            const index = Math.round(el.scrollLeft / width);
+            const safe = Math.max(0, Math.min(index, cards.length - 1));
+            if (safe !== currentIndex) setCurrentIndex(safe);
+          };
         },
         style: { display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollBehavior: "smooth", WebkitOverflowScrolling: "touch", width: "100%" },
         className: "no-scrollbar"

@@ -2125,6 +2125,8 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
     )
   );
 }
+
+
 function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -2133,6 +2135,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [modal, setModal] = useState(null);
   const [baixaCard, setBaixaCard] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [resetting, setResetting] = useState(false);
 
   const flagIcons = {
     "Mastercard": "Mastercard.png",
@@ -2155,7 +2158,6 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
   useEffect(() => { load(); }, [load, refresh]);
 
-  // Reseta índice se sair dos limites
   useEffect(() => {
     if (cards.length > 0 && currentIndex >= cards.length) setCurrentIndex(0);
   }, [cards.length, currentIndex]);
@@ -2171,15 +2173,34 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const handleModalSaved = () => { setModal(null); load(); onRefresh(); };
   const handleBaixaSaved = () => { setBaixaCard(null); load(); onRefresh(); };
 
+  /* ── RESET COMPLETO DO BANCO ── */
+  const handleResetDB = async () => {
+    if (!window.confirm("⚠️ Isso vai apagar TODOS os dados (cartões, despesas, receitas).\n\nTem certeza?")) return;
+    if (!window.confirm("Confirma mesmo? Não tem como desfazer.")) return;
+    setResetting(true);
+    try {
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase("LpBanco");
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => window.location.reload();
+      });
+      window.alert("Banco apagado. O app vai recarregar.");
+      window.location.reload();
+    } catch (err) {
+      console.error("Erro ao apagar banco:", err);
+      window.alert("Erro ao apagar. Tente recarregar a página manualmente.");
+      setResetting(false);
+    }
+  };
+
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
 
   /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
   const renderCreditLancamentos = (card) => {
-    // Todas despesas do cartão exceto débitos de conta corrente — blindado contra dados nulos
     const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
     if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-    // Agrupa por data de lançamento
     const byDate = {};
     cardExp.forEach(e => {
       const key = e.date || "1970-01-01";
@@ -2187,62 +2208,47 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       byDate[key].push(e);
     });
 
-    const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
-
-    return sortedDates.map(date => {
-      const safeDate = date && date !== "1970-01-01" ? date : null;
+    return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+      const safeDate = date !== "1970-01-01" ? date : null;
       return React.createElement("div", { key: date, style: { marginBottom: 20 } },
-        /* Label da data */
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
           safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
         ),
         byDate[date].map(e =>
-          React.createElement("div", { key: e.id,
-            style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" }
-          },
+          React.createElement("div", { key: e.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" } },
             React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
               React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
               React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-                /* Status badge */
-                React.createElement("span", { style: {
-                  fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-                  background: e.paid ? "#DCFCE7" : "#FFF3E0",
-                  color: e.paid ? "#059669" : "#EA580C"
-                }}, e.paid ? "PAGO" : "PENDENTE"),
-                /* Data de pagamento se pago */
-                e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                  "Pago em " + (e.paidAt ? new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "")
+                React.createElement("span", { style: { fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: e.paid ? "#DCFCE7" : "#FFF3E0", color: e.paid ? "#059669" : "#EA580C" } },
+                  e.paid ? "PAGO" : "PENDENTE"
                 ),
-                /* Conta que pagou */
+                e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
+                  "Pago em " + new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                ),
                 e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
                   "via " + e.paidFromCard
                 )
               )
             ),
-            React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
-              React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: e.paid ? "#2563EB" : C.textPri } },
-                "- " + fmt(e.amount || 0)
-              )
+            React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: e.paid ? "#2563EB" : C.textPri, flexShrink: 0 } },
+              "- " + fmt(e.amount || 0)
             )
           )
         )
-      )
-    );
+      );
+    });
   };
 
   /* ── LANÇAMENTOS CONTA CORRENTE ── */
   const renderCheckingLancamentos = (card) => {
-    // Receitas da conta
     const cardIncomes = incomes
       .filter(i => i && (i.card === card.name || i.account === card.name))
       .map(i => ({ ...i, _tipo: "receita", _sortDate: i.date || "1970-01-01" }));
 
-    // Débitos baixados nessa conta (isCheckingDebit)
     const debits = expenses
       .filter(e => e && e.isCheckingDebit && e.card === card.name)
       .map(e => ({ ...e, _tipo: "debito", _sortDate: e.date || "1970-01-01" }));
 
-    // Despesas avista pagas nessa conta (paidFromCard === card.name, não é débito de conta)
     const paidHere = expenses
       .filter(e => e && !e.isCheckingDebit && e.paid && e.paidFromCard === card.name)
       .map(e => ({ ...e, _tipo: "pago_avista", _sortDate: e.paidAt ? e.paidAt.slice(0, 10) : (e.date || "1970-01-01") }));
@@ -2252,18 +2258,15 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
     if (all.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-    // Agrupa por data
     const byDate = {};
     all.forEach(item => {
-      const key = item._sortDate;
+      const key = item._sortDate || "1970-01-01";
       if (!byDate[key]) byDate[key] = [];
       byDate[key].push(item);
     });
 
-    const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
-
-    return sortedDates.map(date => {
-      const safeDate = date && date !== "1970-01-01" ? date : null;
+    return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+      const safeDate = date !== "1970-01-01" ? date : null;
       return React.createElement("div", { key: date, style: { marginBottom: 20 } },
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
           safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
@@ -2272,57 +2275,39 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
           const isReceita = item._tipo === "receita";
           const isDebito = item._tipo === "debito";
           const color = isReceita ? "#059669" : "#EF4444";
-          const signal = isReceita ? "+" : "-";
           const label = isReceita ? "ENTRADA" : isDebito ? "PAGAMENTO" : "PAGO AVISTA";
           const labelBg = isReceita ? "#DCFCE7" : "#FEE2E2";
           const labelColor = isReceita ? "#059669" : "#DC2626";
 
-          return React.createElement("div", { key: item.id + item._tipo + idx,
-            style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" }
-          },
+          return React.createElement("div", { key: item.id + item._tipo + idx, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" } },
             React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
               React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
               React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-                React.createElement("span", { style: {
-                  fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
-                  background: labelBg, color: labelColor
-                }}, label),
+                React.createElement("span", { style: { fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: labelBg, color: labelColor } }, label),
                 item.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                  (item.paidAt ? new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "")
+                  new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
                 ),
-                !isReceita && !isDebito && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
-                  "cartão " + item.card
-                )
+                !isReceita && !isDebito && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, "cartão " + item.card)
               )
             ),
             React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color, flexShrink: 0 } },
-              signal + " " + fmt(item.amount || 0)
+              (isReceita ? "+" : "-") + " " + fmt(item.amount || 0)
             )
           );
         })
-      )
-    );
+      );
+    });
   };
 
   /* ── RENDER DO CARD VISUAL ── */
   const renderCard = (card, index, isChecking) => {
-    const cardExp = expenses.filter(e => e.card === card.name && !e.isCheckingDebit);
-    const totalPending = cardExp.filter(e => e && !e.paid).reduce((a, b) => a + (b.amount || 0), 0);
+    const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
+    const totalPending = cardExp.filter(e => !e.paid).reduce((a, b) => a + (b.amount || 0), 0);
     const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 : card.dueDay - 10) : null;
     const flagImg = flagIcons[card.flag] || flagIcons["Outros"];
 
-    return React.createElement("div", { key: card.id,
-      style: { minWidth: "100%", flexShrink: 0, scrollSnapAlign: "center", scrollSnapStop: "always", padding: "0 16px", boxSizing: "border-box" }
-    },
-      /* VISUAL DO CARTÃO */
-      React.createElement("div", {
-        style: {
-          background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`,
-          height: 180, borderRadius: 20, padding: 24, color: "#FFF", position: "relative",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column",
-          justifyContent: "space-between", overflow: "hidden"
-        }
-      },
+    return React.createElement("div", { key: card.id, style: { minWidth: "100%", flexShrink: 0, scrollSnapAlign: "center", scrollSnapStop: "always", padding: "0 16px", boxSizing: "border-box" } },
+      React.createElement("div", { style: { background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`, height: 180, borderRadius: 20, padding: 24, color: "#FFF", position: "relative", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 2 } },
           React.createElement("div", null,
             React.createElement("div", { style: { fontSize: 16, fontWeight: 700, textShadow: "0 1px 2px rgba(0,0,0,0.2)" } }, card.name),
@@ -2337,8 +2322,6 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
           React.createElement("img", { src: flagImg, style: { height: 35, width: "auto", objectFit: "contain" }, alt: card.flag })
         )
       ),
-
-      /* RESUMO FINANCEIRO */
       React.createElement("div", { style: { padding: "24px 4px" } },
         !isChecking
           ? React.createElement(React.Fragment, null,
@@ -2346,10 +2329,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
                 React.createElement("div", null,
                   React.createElement("div", { style: { fontSize: 13, color: C.textSec } }, "Fatura aberta"),
                   React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.textPri, margin: "4px 0" } }, fmt(totalPending)),
-                  melhorDia && React.createElement("div", { style: { fontSize: 12, color: C.textSec } },
-                    "Melhor data de compra: ",
-                    React.createElement("strong", null, String(melhorDia).padStart(2, "0"), " ", MONTHS[new Date().getMonth()].toLowerCase())
-                  )
+                  melhorDia && React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "Melhor data de compra: ", React.createElement("strong", null, String(melhorDia).padStart(2, "0"), " ", MONTHS[new Date().getMonth()].toLowerCase()))
                 ),
                 React.createElement("button", { onClick: () => setBaixaCard(card), style: { background: "none", border: "none", color: "#32336e", fontWeight: 700, fontSize: 14, cursor: "pointer" } }, "Acessar fatura ›")
               ),
@@ -2363,17 +2343,13 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
               React.createElement("div", { style: { fontSize: 13, color: C.textSec } }, "Saldo atual"),
               React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.accent } }, fmt(Number(card.balance) || 0))
             ),
-
-        /* BOTÕES DE AÇÃO */
         React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 24 } },
-          React.createElement("button", {
-            onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card),
-            style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }
-          }, isChecking ? "Novo Saldo" : "Baixar Despesas"),
-          React.createElement("button", {
-            onClick: () => onNav({ name: "agrupar", cardName: card.name }),
-            style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }
-          }, isChecking ? "Extrato" : "Agrupar Despesas")
+          React.createElement("button", { onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card), style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } },
+            isChecking ? "Novo Saldo" : "Baixar Despesas"
+          ),
+          React.createElement("button", { onClick: () => onNav({ name: "agrupar", cardName: card.name }), style: { flex: 1, background: "transparent", border: "2px solid #32336e", color: "#32336e", padding: "14px", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" } },
+            isChecking ? "Extrato" : "Agrupar Despesas"
+          )
         )
       )
     );
@@ -2385,20 +2361,15 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 90 } },
     React.createElement(TopBar, {
       title: "Cartões", onBack,
-      action: React.createElement("button", {
-        onClick: () => setModal("new"),
-        style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: "pointer" }
-      }, "+ Novo")
+      action: React.createElement("button", { onClick: () => setModal("new"), style: { background: "#FF620022", border: "none", borderRadius: 10, padding: "8px 14px", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: "pointer" } }, "+ Novo")
     }),
 
     loading ? React.createElement(Loader) : React.createElement("div", null,
 
-      /* DOTS INDICADORES */
       cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
         cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
       ),
 
-      /* CARROSSEL */
       React.createElement("div", {
         ref: (el) => {
           if (!el) return;
@@ -2418,17 +2389,24 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
           : cards.map((c, i) => renderCard(c, i, c.isCheckingAccount))
       ),
 
-      /* ── SEÇÃO DE LANÇAMENTOS ── */
+      /* LANÇAMENTOS */
       currentCard && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, padding: "20px" } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
           React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),
-          React.createElement("span", { style: { fontSize: 12, color: C.textMut } },
-            currentCard.isCheckingAccount ? "Entradas e saídas da conta" : "Despesas do cartão"
-          )
+          React.createElement("span", { style: { fontSize: 12, color: C.textMut } }, currentCard.isCheckingAccount ? "Entradas e saídas da conta" : "Despesas do cartão")
         ),
         currentCard.isCheckingAccount
           ? renderCheckingLancamentos(currentCard)
           : renderCreditLancamentos(currentCard)
+      ),
+
+      /* BOTÃO RESET */
+      React.createElement("div", { style: { padding: "20px 20px 10px", borderTop: `1px solid #F5F5F5`, marginTop: 20 } },
+        React.createElement("button", {
+          onClick: handleResetDB,
+          disabled: resetting,
+          style: { width: "100%", padding: "14px", borderRadius: 12, border: "1.5px solid #EF4444", background: "transparent", color: "#EF4444", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: resetting ? 0.6 : 1 }
+        }, resetting ? "Apagando..." : "🗑 Limpar todos os dados do app")
       )
     ),
 

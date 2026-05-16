@@ -1891,24 +1891,24 @@ function BaixaModal({ userId, creditCard, checkingCards, expenses, onClose, onSa
 
 function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   const [payAmount, setPayAmount] = React.useState("");
-  const [selChecking, setSelChecking] = React.useState("");
+  const [selChecking, setSelChecking] = React.useState(cards[0]?.name || "");
   const [relatedExpenses, setRelatedExpenses] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([expense.id]);
   const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     async function loadRelated() {
       try {
         const all = await dbByIndex("expenses", "userId", user.id);
-        const cardName = expense.card || "";
-        const filtered = all.filter(e => 
-          e.card === cardName && 
-          e.paid === false && 
+        const filtered = all.filter(e =>
+          e.card === (expense.card || "") &&
+          e.paid === false &&
           !e.isCheckingDebit
         );
         setRelatedExpenses(filtered);
       } catch (err) {
-        console.error("Erro ao carregar banco:", err);
+        console.error("Erro ao carregar despesas:", err);
       }
       setLoading(false);
     }
@@ -1916,143 +1916,212 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   }, [expense.card, user.id]);
 
   const handleProcess = async () => {
-    // 1. Conversão e Validação Rigorosa
     const totalToPay = Number(parseFloat(String(payAmount).replace(",", ".")).toFixed(2));
-    
     if (isNaN(totalToPay) || totalToPay <= 0) return alert("Digite um valor válido.");
     if (!selChecking) return alert("Selecione a conta de saída.");
-    if (selectedIds.length === 0) return alert("Selecione um item da lista.");
+    if (selectedIds.length === 0) return alert("Selecione ao menos uma despesa.");
 
+    setSaving(true);
     try {
+      const now = new Date().toISOString();
+      const today = now.slice(0, 10);
+      const todayMonth = new Date().getMonth() + 1;
+      const todayYear = new Date().getFullYear();
+
+      // Distribui o valor pago entre as despesas selecionadas (mais antigas primeiro)
       let pool = totalToPay;
-      
-      // 2. Processamento Serial para Integridade do IndexedDB
-      for (const id of selectedIds) {
+      const selectedItems = relatedExpenses
+        .filter(e => selectedIds.includes(e.id))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      for (const item of selectedItems) {
         if (pool <= 0) break;
 
-        const item = relatedExpenses.find(e => e.id === id);
-        if (!item) continue;
-
-        const deduct = Math.min(item.amount, pool);
+        const deduct = Number(Math.min(item.amount, pool).toFixed(2));
         const remaining = Number((item.amount - deduct).toFixed(2));
 
-        // 3. SANITIZAÇÃO: Remove campos fantasmas como '_tipo'
-        const cleanUpdate = {
-          id: item.id,
+        // 1. Atualiza despesa original com saldo restante (sempre pendente)
+        await dbPut("expenses", {
+          ...item,
+          amount: remaining > 0 ? remaining : item.amount,
+          paid: false,
+          updatedAt: now
+        });
+
+        // 2. Cria nova despesa com o valor pago (aparece no extrato como paga)
+        await dbAdd("expenses", {
           userId: user.id,
           desc: item.desc,
-          amount: item.amount,
+          amount: deduct,
           category: item.category,
           card: item.card,
           date: item.date,
           month: item.month,
           year: item.year,
-          paid: item.paid,
-          pagamento: item.pagamento || "Parcelado",
-          createdAt: item.createdAt,
-          updatedAt: new Date().toISOString()
-        };
+          pagamento: item.pagamento || "",
+          installmentGroup: item.installmentGroup || null,
+          installmentLabel: item.installmentLabel || null,
+          installmentTotal: item.installmentTotal || null,
+          paid: true,
+          paidAt: now,
+          paidFromCard: selChecking,
+          isCheckingDebit: false,   // aparece no extrato normal como despesa paga
+          createdAt: now,
+          updatedAt: now
+        });
 
-        if (remaining <= 0) {
-          cleanUpdate.paid = true;
-          cleanUpdate.paidAt = new Date().toISOString();
-          cleanUpdate.paidFromCard = selChecking;
-        } else {
-          cleanUpdate.amount = remaining;
-          if (!cleanUpdate.desc.includes("(Saldo)")) {
-            cleanUpdate.desc = `${cleanUpdate.desc} (Saldo)`;
-          }
-        }
-
-        // Usa dbPut para garantir a substituição correta
-        await dbPut("expenses", cleanUpdate);
         pool = Number((pool - deduct).toFixed(2));
       }
 
-      // 4. Registro ÚNICO de Débito (Correção do Split de Data)
-      const today = new Date().toISOString().split('T');
+      // 3. Registro de débito na conta corrente (histórico da conta)
       await dbAdd("expenses", {
         userId: user.id,
-        desc: `Pagto Parcial: ${expense.card || 'Cartão'}`,
+        desc: `Pgto Parcial: ${expense.card || "Cartão"}`,
         amount: totalToPay,
         category: "Pagamento",
-        card: expense.card,
-        paidFromCard: selChecking,
+        card: selChecking,
         date: today,
-        month: new Date().getMonth() + 1,
-        year: 2026,
+        month: todayMonth,
+        year: todayYear,
         paid: true,
-        paidAt: new Date().toISOString(),
-        isCheckingDebit: true,
-        createdAt: new Date().toISOString()
+        paidAt: now,
+        paidFromCard: selChecking,
+        isCheckingDebit: true,     // aparece só no histórico da conta
+        createdAt: now
       });
 
-      // 5. Atualização de Saldo da Conta Corrente
+      // 4. Atualiza saldo da conta corrente
       const cc = cards.find(c => c.name === selChecking);
       if (cc && cc.balance != null) {
-        await dbPut("cards", { 
-          ...cc, 
-          balance: Number((cc.balance - totalToPay).toFixed(2)) 
+        await dbPut("cards", {
+          ...cc,
+          balance: Number((cc.balance - totalToPay).toFixed(2))
         });
       }
 
-      onSaved(); 
+      onSaved();
     } catch (err) {
-      console.error("ERRO INDEXEDDB:", err);
-      alert("Falha técnica ao gravar no banco. Verifique se o objeto contém campos inválidos.");
+      console.error("ERRO:", err);
+      alert("Falha ao gravar. Tente novamente.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  return React.createElement("div", { 
-    style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' } 
+  const totalSelecionado = relatedExpenses
+    .filter(e => selectedIds.includes(e.id))
+    .reduce((a, b) => a + b.amount, 0);
+
+  return React.createElement("div", {
+    style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1100, display: "flex", alignItems: "flex-end" },
+    onClick: onClose
   },
-    React.createElement("div", { 
-      style: { background: '#FFF', width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: "24px 20px 40px", maxHeight: '92vh', overflowY: 'auto' } 
+    React.createElement("div", {
+      onClick: e => e.stopPropagation(),
+      style: {
+        background: "#FFF",
+        width: "100%",
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        maxHeight: "92dvh",
+        display: "flex",
+        flexDirection: "column"
+      }
     },
-      React.createElement("div", { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 20 } },
-        React.createElement("span", { style: { fontWeight: 900, fontSize: 18, color: '#32336e' } }, "Baixa Parcial"),
-        React.createElement("button", { onClick: onClose, style: { border: 'none', background: '#F5F5F5', borderRadius: 20, width: 32, height: 32 } }, "✕")
-      ),
-      React.createElement("div", { style: { marginBottom: 20 } },
-        loading ? React.createElement(Loader) : 
-        relatedExpenses.map(ex => React.createElement("div", { 
-          key: ex.id, 
-          onClick: () => {
-            if(selectedIds.includes(ex.id)) setSelectedIds(selectedIds.filter(id => id !== ex.id));
-            else setSelectedIds([...selectedIds, ex.id]);
+
+      /* ── CORPO SCROLLÁVEL ── */
+      React.createElement("div", {
+        style: { flex: 1, overflowY: "auto", padding: "24px 20px", display: "flex", flexDirection: "column", gap: 20 }
+      },
+
+        /* Cabeçalho */
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+          React.createElement("span", { style: { fontWeight: 900, fontSize: 18, color: "#32336e" } }, "Baixa Parcial"),
+          React.createElement("button", { onClick: onClose, style: { border: "none", background: "#F5F5F5", borderRadius: 20, width: 32, height: 32, cursor: "pointer" } }, "✕")
+        ),
+
+        /* Lista de despesas */
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: "#999", marginBottom: 10 } }, "SELECIONE AS DESPESAS"),
+          loading
+            ? React.createElement(Loader)
+            : relatedExpenses.length === 0
+              ? React.createElement("div", { style: { color: "#999", fontSize: 13, textAlign: "center", padding: 20 } }, "Nenhuma despesa em aberto neste cartão")
+              : relatedExpenses.map(ex =>
+                  React.createElement("div", {
+                    key: ex.id,
+                    onClick: () => {
+                      if (selectedIds.includes(ex.id)) setSelectedIds(selectedIds.filter(id => id !== ex.id));
+                      else setSelectedIds([...selectedIds, ex.id]);
+                    },
+                    style: {
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "14px 0", borderBottom: "1px solid #EEE", cursor: "pointer"
+                    }
+                  },
+                    React.createElement("input", { type: "checkbox", checked: selectedIds.includes(ex.id), readOnly: true, style: { width: 18, height: 18 } }),
+                    React.createElement("div", { style: { flex: 1, fontSize: 14, fontWeight: 600, color: "#000" } }, ex.desc),
+                    React.createElement("div", { style: { fontWeight: 800, color: "#32336e" } }, fmt(ex.amount))
+                  )
+                )
+        ),
+
+        /* Valor do pagamento */
+        React.createElement("div", null,
+          React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: "#999" } }, "VALOR DO PAGAMENTO"),
+          selectedIds.length > 0 && React.createElement("div", { style: { fontSize: 11, color: "#64748b", marginTop: 4 } },
+            `Total em aberto selecionado: ${fmt(totalSelecionado)}`
+          ),
+          React.createElement("input", {
+            type: "number",
+            style: {
+              width: "100%", padding: 16, borderRadius: 12,
+              border: "2px solid #32336e", fontSize: 24, fontWeight: 900,
+              marginTop: 8, textAlign: "center", boxSizing: "border-box"
+            },
+            value: payAmount,
+            onChange: e => setPayAmount(e.target.value),
+            placeholder: "0.00"
+          })
+        ),
+
+        /* Conta de débito */
+        React.createElement("div", null,
+          React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: "#999" } }, "DEBITAR DE QUAL CONTA?"),
+          React.createElement("select", {
+            style: {
+              width: "100%", padding: 14, borderRadius: 12,
+              border: "1px solid #CCC", marginTop: 8, fontSize: 16, background: "#F9F9F9"
+            },
+            value: selChecking,
+            onChange: e => setSelChecking(e.target.value)
           },
-          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '15px 0', borderBottom: '1px solid #EEE', cursor: 'pointer' } 
-        },
-          React.createElement("input", { type: "checkbox", checked: selectedIds.includes(ex.id), readOnly: true, style: { width: 18, height: 18 } }),
-          React.createElement("div", { style: { flex: 1, fontSize: 14, fontWeight: 600 } }, ex.desc),
-          React.createElement("div", { style: { fontWeight: 800, color: '#32336e' } }, fmt(ex.amount))
-        ))
-      ),
-      React.createElement("div", { style: { marginBottom: 20 } },
-        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "VALOR DO PAGAMENTO"),
-        React.createElement("input", { 
-          type: "number",
-          style: { width: '100%', padding: 16, borderRadius: 12, border: '2px solid #32336e', fontSize: 24, fontWeight: 900, marginTop: 8, textAlign: 'center', boxSizing: 'border-box' },
-          value: payAmount,
-          onChange: (e) => setPayAmount(e.target.value),
-          placeholder: "0.00"
-        })
-      ),
-      React.createElement("div", { style: { marginBottom: 30 } },
-        React.createElement("label", { style: { fontSize: 11, fontWeight: 800, color: '#999' } }, "DEBITAR DE QUAL CONTA?"),
-        React.createElement("select", { 
-          style: { width: '100%', padding: 14, borderRadius: 12, border: '1px solid #CCC', marginTop: 8, fontSize: 16, background: '#F9F9F9' },
-          value: selChecking,
-          onChange: (e) => setSelChecking(e.target.value)
-        },
-          React.createElement("option", { value: "" }, "Selecione o banco"),
-          cards.map(c => React.createElement("option", { key: c.id, value: c.name }, c.name))
+            React.createElement("option", { value: "" }, "Selecione o banco"),
+            cards.map(c => React.createElement("option", { key: c.id, value: c.name }, c.name))
+          )
         )
       ),
-      React.createElement("button", { 
-        onClick: handleProcess,
-        style: { width: '100%', padding: 20, background: '#FF6200', color: '#FFF', borderRadius: 16, border: 'none', fontWeight: 900, fontSize: 16, cursor: 'pointer' }
-      }, "CONFIRMAR PAGAMENTO")
+
+      /* ── RODAPÉ FIXO ── */
+      React.createElement("div", {
+        style: {
+          padding: "12px 20px",
+          paddingBottom: "max(calc(env(safe-area-inset-bottom) + 65px), 80px)",
+          borderTop: "0.5px solid #F0F0F0",
+          background: "#FFF"
+        }
+      },
+        React.createElement("button", {
+          onClick: handleProcess,
+          disabled: saving || !payAmount || !selChecking || selectedIds.length === 0,
+          style: {
+            width: "100%", padding: 20,
+            background: saving || !payAmount || !selChecking || selectedIds.length === 0 ? "#CBD5E1" : "#FF6200",
+            color: "#FFF", borderRadius: 16, border: "none",
+            fontWeight: 900, fontSize: 16, cursor: "pointer"
+          }
+        }, saving ? "Processando..." : "CONFIRMAR PAGAMENTO")
+      )
     )
   );
 }

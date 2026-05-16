@@ -1358,22 +1358,26 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
   const [selected, setSelected] = useState(initialSel);
   const [selChecking, setSelChecking] = useState(checkingCards[0]?.id || null);
   const [saving, setSaving] = useState(false);
+
   const toggleAll = () => {
-    if (selected.size === allPending.length) setSelected(/* @__PURE__ */ new Set());
+    if (selected.size === allPending.length) setSelected(new Set());
     else setSelected(new Set(allPending.map((e) => e.id)));
   };
+
   const toggleOne = (id) => {
     const s = new Set(selected);
     s.has(id) ? s.delete(id) : s.add(id);
     setSelected(s);
   };
+
   const toBaixar = allPending.filter((e) => selected.has(e.id));
   const total = toBaixar.reduce((a, b) => a + b.amount, 0);
+
   const handle = async () => {
     if (!selChecking || toBaixar.length === 0) return;
     const cc = checkingCards.find((c) => c.id === selChecking);
     setSaving(true);
-    const paidAt = (/* @__PURE__ */ new Date()).toISOString();
+    const paidAt = new Date().toISOString();
     const paidDate = paidAt.slice(0, 10);
     for (const e of toBaixar) {
       await dbPut("expenses", { ...e, paid: true, paidAt, paidFromCard: cc.name });
@@ -1384,8 +1388,8 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
         category: e.category,
         card: cc.name,
         date: paidDate,
-        month: (/* @__PURE__ */ new Date(paidDate + "T12:00:00")).getMonth() + 1,
-        year: (/* @__PURE__ */ new Date(paidDate + "T12:00:00")).getFullYear(),
+        month: new Date(paidDate + "T12:00:00").getMonth() + 1,
+        year: new Date(paidDate + "T12:00:00").getFullYear(),
         paid: true,
         paidAt,
         paidFromCard: cc.name,
@@ -1402,18 +1406,202 @@ function BaixaTituloModal({ userId, expense, allExpenses, cards, onClose, onSave
     setSaving(false);
     onSaved();
   };
-  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 300, display: "flex", alignItems: "flex-end" }, onClick: onClose }, /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: "#fff", borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 430, margin: "0 auto", padding: "24px 20px", paddingBottom: "max(env(safe-area-inset-bottom),24px)", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -8px 40px rgba(0,0,0,0.15)", maxHeight: "90dvh", overflowY: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Baixar T\xEDtulos"), /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", color: C.textMut, fontSize: 22, cursor: "pointer" } }, "\u2715")), /* @__PURE__ */ React.createElement("div", { style: { background: C.border + "55", borderRadius: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "\u{1F4B3} Despesas em aberto"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.textPri } }, expense.card)), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Selecionadas"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.red } }, selected.size, " / ", allPending.length))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.textMut, textTransform: "uppercase", letterSpacing: 0.4 } }, "Despesas do cart\xE3o"), /* @__PURE__ */ React.createElement("button", { onClick: toggleAll, style: { background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 600, color: C.blue, cursor: "pointer" } }, selected.size === allPending.length ? "Desmarcar tudo" : "Marcar tudo")), /* @__PURE__ */ React.createElement(SCard, { style: { padding: 0, overflow: "hidden" } }, allPending.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: C.textMut, fontSize: 13, textAlign: "center", padding: 20 } }, "Nenhuma despesa em aberto neste cart\xE3o") : allPending.map((e, i) => {
-    const checked = selected.has(e.id);
-    return /* @__PURE__ */ React.createElement("div", { key: e.id, onClick: () => toggleOne(e.id), style: { display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderBottom: i < allPending.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", background: checked ? C.blue + "09" : "transparent", transition: "background .15s" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? C.blue : C.border}`, background: checked ? C.blue : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .15s" } }, checked && /* @__PURE__ */ React.createElement("span", { style: { color: "#fff", fontSize: 13, lineHeight: 1 } }, "\u2713")), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.textPri, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, e.date.slice(8), "/", e.date.slice(5, 7), "/", e.date.slice(0, 4), e.installmentTotal > 1 ? ` \xB7 ${e.installmentLabel}` : "", " \xB7 ", e.category)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: C.red, flexShrink: 0 } }, "-", fmt(e.amount)));
-  })), selected.size > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 4px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: C.textSec } }, selected.size, " despesa", selected.size > 1 ? "s" : "", " selecionada", selected.size > 1 ? "s" : ""), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 16, fontWeight: 800, color: C.red } }, "-", fmt(total)))), checkingCards.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { background: C.red + "11", border: `1px solid ${C.red}33`, borderRadius: 12, padding: 12, color: C.red, fontSize: 13 } }, "\u26A0\uFE0F Cadastre uma conta corrente em Cart\xF5es primeiro.") : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.textSec } }, "\u{1F3E6} Debitar em qual conta corrente?"), checkingCards.map((cc) => /* @__PURE__ */ React.createElement("button", { key: cc.id, onClick: () => setSelChecking(cc.id), style: { display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 12, border: `2px solid ${selChecking === cc.id ? C.accent : C.border}`, background: selChecking === cc.id ? C.accent + "11" : "#F8FAFC", cursor: "pointer", textAlign: "left", transition: "all .15s" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 34, height: 34, borderRadius: 10, background: cc.color, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: textOnColor(cc.color), fontSize: 16 } }, "\u{1F3E6}"), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: C.textPri } }, cc.name), cc.balance != null && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "Saldo dispon\xEDvel: ", fmt(cc.balance))), selChecking === cc.id && /* @__PURE__ */ React.createElement("span", { style: { color: C.accent, fontSize: 20, fontWeight: 700 } }, "\u2713")))), checkingCards.length > 0 && /* @__PURE__ */ React.createElement(
-    Btn,
+
+  return React.createElement(
+    "div",
     {
-      label: saving ? "Baixando..." : `Confirmar Baixa${selected.size > 0 ? ` \u2014 ${fmt(total)}` : ""}`,
-      color: selected.size > 0 && selChecking ? `linear-gradient(135deg,${C.accentD},#065f46)` : "#CBD5E1",
-      onClick: handle,
-      disabled: saving || selected.size === 0 || !selChecking
-    }
-  )));
+      style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 300, display: "flex", alignItems: "flex-end" },
+      onClick: onClose
+    },
+    React.createElement(
+      "div",
+      {
+        onClick: (e) => e.stopPropagation(),
+        style: {
+          background: "#fff",
+          borderRadius: "24px 24px 0 0",
+          width: "100%",
+          maxWidth: 430,
+          margin: "0 auto",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+          maxHeight: "90dvh",
+          display: "flex",
+          flexDirection: "column",
+          // SEM overflow aqui — o scroll fica só no corpo interno
+        }
+      },
+
+      /* ── CORPO SCROLLÁVEL ── */
+      React.createElement(
+        "div",
+        {
+          style: {
+            overflowY: "auto",
+            flex: 1,
+            padding: "24px 20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 14
+          }
+        },
+
+        /* Cabeçalho */
+        React.createElement(
+          "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+          React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Baixar Títulos"),
+          React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", color: C.textMut, fontSize: 22, cursor: "pointer" } }, "✕")
+        ),
+
+        /* Resumo do cartão */
+        React.createElement(
+          "div",
+          { style: { background: C.border + "55", borderRadius: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+          React.createElement(
+            "div",
+            null,
+            React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "💳 Despesas em aberto"),
+            React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.textPri } }, expense.card)
+          ),
+          React.createElement(
+            "div",
+            { style: { textAlign: "right" } },
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Selecionadas"),
+            React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.red } }, selected.size, " / ", allPending.length)
+          )
+        ),
+
+        /* Lista de despesas */
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.textMut, textTransform: "uppercase", letterSpacing: 0.4 } }, "Despesas do cartão"),
+            React.createElement(
+              "button",
+              {
+                onClick: toggleAll,
+                style: { background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 600, color: C.blue, cursor: "pointer" }
+              },
+              selected.size === allPending.length ? "Desmarcar tudo" : "Marcar tudo"
+            )
+          ),
+          React.createElement(
+            SCard,
+            { style: { padding: 0, overflow: "hidden" } },
+            allPending.length === 0
+              ? React.createElement("div", { style: { color: C.textMut, fontSize: 13, textAlign: "center", padding: 20 } }, "Nenhuma despesa em aberto neste cartão")
+              : allPending.map((e, i) => {
+                  const checked = selected.has(e.id);
+                  return React.createElement(
+                    "div",
+                    {
+                      key: e.id,
+                      onClick: () => toggleOne(e.id),
+                      style: {
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "11px 14px",
+                        borderBottom: i < allPending.length - 1 ? `1px solid ${C.border}` : "none",
+                        cursor: "pointer",
+                        background: checked ? C.blue + "09" : "transparent",
+                        transition: "background .15s"
+                      }
+                    },
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          width: 22, height: 22, borderRadius: 6,
+                          border: `2px solid ${checked ? C.blue : C.border}`,
+                          background: checked ? C.blue : "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, transition: "all .15s"
+                        }
+                      },
+                      checked && React.createElement("span", { style: { color: "#fff", fontSize: 13, lineHeight: 1 } }, "✓")
+                    ),
+                    React.createElement(
+                      "div",
+                      { style: { flex: 1, minWidth: 0 } },
+                      React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.textPri, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc),
+                      React.createElement("div", { style: { fontSize: 11, color: C.textMut } },
+                        e.date.slice(8), "/", e.date.slice(5, 7), "/", e.date.slice(0, 4),
+                        e.installmentTotal > 1 ? ` · ${e.installmentLabel}` : "",
+                        " · ", e.category
+                      )
+                    ),
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: C.red, flexShrink: 0 } }, "-", fmt(e.amount))
+                  );
+                })
+          ),
+          selected.size > 0 && React.createElement(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 4px" } },
+            React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: C.textSec } },
+              selected.size, " despesa", selected.size > 1 ? "s" : "", " selecionada", selected.size > 1 ? "s" : ""
+            ),
+            React.createElement("span", { style: { fontSize: 16, fontWeight: 800, color: C.red } }, "-", fmt(total))
+          )
+        ),
+
+        /* Seleção de conta corrente */
+        checkingCards.length === 0
+          ? React.createElement("div", { style: { background: C.red + "11", border: `1px solid ${C.red}33`, borderRadius: 12, padding: 12, color: C.red, fontSize: 13 } },
+              "⚠️ Cadastre uma conta corrente em Cartões primeiro."
+            )
+          : React.createElement(
+              "div",
+              { style: { display: "flex", flexDirection: "column", gap: 8 } },
+              React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: C.textSec } }, "🏦 Debitar em qual conta corrente?"),
+              checkingCards.map((cc) =>
+                React.createElement(
+                  "button",
+                  {
+                    key: cc.id,
+                    onClick: () => setSelChecking(cc.id),
+                    style: {
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "11px 14px", borderRadius: 12,
+                      border: `2px solid ${selChecking === cc.id ? C.accent : C.border}`,
+                      background: selChecking === cc.id ? C.accent + "11" : "#F8FAFC",
+                      cursor: "pointer", textAlign: "left", transition: "all .15s"
+                    }
+                  },
+                  React.createElement("div", { style: { width: 34, height: 34, borderRadius: 10, background: cc.color, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: textOnColor(cc.color), fontSize: 16 } }, "🏦"),
+                  React.createElement(
+                    "div",
+                    { style: { flex: 1 } },
+                    React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: C.textPri } }, cc.name),
+                    cc.balance != null && React.createElement("div", { style: { fontSize: 12, color: C.textSec } }, "Saldo disponível: ", fmt(cc.balance))
+                  ),
+                  selChecking === cc.id && React.createElement("span", { style: { color: C.accent, fontSize: 20, fontWeight: 700 } }, "✓")
+                )
+              )
+            )
+      ), // fim do corpo scrollável
+
+      /* ── RODAPÉ FIXO — botão SEMPRE visível ── */
+      checkingCards.length > 0 && React.createElement(
+        "div",
+        {
+          style: {
+            padding: "12px 20px",
+            paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+            borderTop: "0.5px solid #F0F0F0",
+            background: "#fff"
+          }
+        },
+        React.createElement(Btn, {
+          label: saving ? "Baixando..." : `Confirmar Baixa${selected.size > 0 ? ` — ${fmt(total)}` : ""}`,
+          color: selected.size > 0 && selChecking ? `linear-gradient(135deg,${C.accentD},#065f46)` : "#CBD5E1",
+          onClick: handle,
+          disabled: saving || selected.size === 0 || !selChecking
+        })
+      )
+    )
+  );
 }
 function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
   const [expenses, setExpenses] = useState([]);

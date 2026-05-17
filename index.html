@@ -2993,7 +2993,6 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
 
   const cardNames = [...new Set(expenses.filter((e) => !e.isCheckingDebit).map((e) => e.card).filter(Boolean))];
   
-  // FILTRAGEM COM STATUS RESTAURADO
   const baseExp = expenses.filter(
     (e) => !e.isCheckingDebit && 
     (selPeriod === "tudo" || (e.month === selPeriod.m && e.year === selPeriod.y)) && 
@@ -3008,7 +3007,6 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     ...(selTipo === "todos" || selTipo === "receita" ? baseInc.map((i) => ({ ...i, _tipo: "receita" })) : [])
   ];
 
-  // ORDENAÇÃO FUNCIONAL (DATA OU VALOR)
   const sorted = [...unified].sort((a, b) => {
     if (sortBy === "amount") return b.amount - a.amount;
     return new Date(b.date) - new Date(a.date);
@@ -3033,7 +3031,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* FILTRO DE MESES ITAÚ */
+    /* FILTRO DE MESES */
     React.createElement("div", { style: { position: 'relative', borderBottom: "1px solid #F0F0F0" } },
       React.createElement("div", { style: { position: 'absolute', top: '55px', left: 0, right: 0, height: '1px', background: '#E0E0E0', zIndex: 1 } }),
       React.createElement("div", { style: { display: "flex", gap: 15, overflowX: "auto", padding: "15px 20px 20px", alignItems: "flex-start", position: 'relative', zIndex: 2 }, className: "no-scrollbar" },
@@ -3051,7 +3049,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
       )
     ),
 
-    /* FILTROS PENDENTE/PAGO E ORDENAÇÃO RESTAURADOS */
+    /* FILTROS PENDENTE/PAGO E ORDENAÇÃO */
     React.createElement("div", { style: { padding: "15px 20px 10px", display: "flex", flexDirection: "column", gap: 12 } },
       React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
         React.createElement("div", { style: { display: "flex", gap: 8 } },
@@ -3096,6 +3094,15 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
         const showDate = i === 0 || item.date !== sorted[i-1].date;
         const itemColor = isRec ? "#059669" : (item.paid ? "#2563EB" : "#64748b");
 
+        // ── LÓGICA DE PARCIAL ──────────────────────────────────────────────
+        // isOriginalComParcial: despesa que gerou um pagamento parcial (tem partialPaymentRef apontando para ela)
+        // isFilhoParcial: despesa gerada pelo pagamento parcial (tem partialPaymentRef preenchido)
+        const isOriginalComParcial = !isRec && !item.partialPaymentRef && expenses.some(e => e.partialPaymentRef === item.id);
+        const isFilhoParcial = !isRec && !!item.partialPaymentRef;
+
+        // Sufixo no cartão/mês da linha de descrição
+        const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";
+
         return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
           showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
             new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
@@ -3107,7 +3114,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
                 React.createElement("div", { style: { flex: 1 } },
                   React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
                   React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4 } }, 
-                    React.createElement("span", null, `${MONTHS[item.month-1]} • ${item.card || 'Sem cartão'}`),
+                    React.createElement("span", null, `${MONTHS[item.month-1]} • ${item.card || 'Sem cartão'}${cardSuffix}`),
                     item.paid && item.paidFromCard && React.createElement("span", { style: { color: "#2563EB", fontWeight: 600 } }, ` • pagto via: ${item.paidFromCard}`)
                   )
                 )
@@ -3123,13 +3130,11 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
                 React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "PARCIAL"),
                 React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "BAIXAR")
               ),
-              // CORREÇÃO DO BOTÃO EDITAR: Chama onNav (ou setScreen) passando o objeto de tela
               React.createElement("button", { 
                 onClick: () => {
                   const screenData = { id: item.id, name: isRec ? "edit-income" : "edit-expense" };
-                  // Se a função global for setScreen, use-a. Ajustado para o padrão do seu App:
                   if (window.setScreen) window.setScreen(screenData);
-                  else onRefresh(); // Fallback ou trigger refresh
+                  else onRefresh();
                 }, 
                 style: { border: "none", background: "none", color: "#94A3B8", fontSize: 11, fontWeight: 700, cursor: 'pointer' } 
               }, "EDITAR"),
@@ -3144,7 +3149,7 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     baixaParcialExp && React.createElement(PartialPaymentModal, { user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), onClose: () => setBaixaParcialExp(null), onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } })
   );
 }
-// 1. Corrigido: Guardamos apenas o SRC da imagem para evitar erros de inicialização
+
 const navItems = [
   { id: "dashboard", icon: "dashboard.png", label: "Início" },
   { id: "calendar", icon: "calendario.png", label: "Agenda" },

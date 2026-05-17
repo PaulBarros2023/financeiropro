@@ -776,9 +776,7 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
     setLoading(false);
   }, [user.id]);
 
-  useEffect(() => {
-    load();
-  }, [load, refresh]);
+  useEffect(() => { load(); }, [load, refresh]);
 
   useEffect(() => {
     if (!("Notification" in window)) return;
@@ -797,6 +795,7 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
   }, [cards]);
 
   const now = new Date().getMonth() + 1;
+  const nowYear = new Date().getFullYear();
   const monthExp = expenses.filter((e) => !e.isCheckingDebit && e.month === now).reduce((a, b) => a + b.amount, 0);
   const monthInc = incomes.filter((i) => i.month === now).reduce((a, b) => a + b.amount, 0);
   const checkingCards = cards.filter((c) => c.isCheckingAccount);
@@ -808,30 +807,70 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
     return spent / g.monthlyLimit >= 0.8;
   });
 
+  // ── IDEIA 3: Saudação dinâmica por horário ─────────────────────────────────
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Bom dia";
+    if (h < 18) return "Boa tarde";
+    return "Boa noite";
+  })();
+
+  // ── IDEIA 4: Indicador de tendência (mês atual vs mês anterior) ────────────
+  const prevMonth = now === 1 ? 12 : now - 1;
+  const prevYear  = now === 1 ? nowYear - 1 : nowYear;
+  const prevMonthExp = expenses.filter((e) => !e.isCheckingDebit && e.month === prevMonth && e.year === prevYear).reduce((a, b) => a + b.amount, 0);
+  const trendDiff = monthExp - prevMonthExp;
+  const trendPct  = prevMonthExp > 0 ? Math.abs(Math.round((trendDiff / prevMonthExp) * 100)) : null;
+  const trendUp   = trendDiff > 0;
+  const trendIcon = trendDiff === 0 ? "→" : trendUp ? "🔺" : "🔻";
+  const trendColor = trendUp ? "#EF4444" : "#059669";
+
+  // ── IDEIA 1: Dados dos últimos 4 meses para gráfico de barras ─────────────
+  const last4 = Array.from({ length: 4 }, (_, i) => {
+    const d = new Date(nowYear, now - 1 - (3 - i), 1);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const total = expenses.filter(e => !e.isCheckingDebit && e.month === m && e.year === y).reduce((a, b) => a + b.amount, 0);
+    return { label: MONTHS[m - 1].slice(0, 3), total, isCurrent: m === now && y === nowYear };
+  });
+  const maxBar = Math.max(...last4.map(b => b.total), 1);
+
+  // ── IDEIA 2: Progresso das metas ───────────────────────────────────────────
+  const goalsWithProgress = goals.map((g) => {
+    const spent = expenses.filter((e) => !e.isCheckingDebit && e.month === now && e.category === g.category).reduce((a, b) => a + b.amount, 0);
+    const pct = Math.min(Math.round((spent / g.monthlyLimit) * 100), 100);
+    return { ...g, spent, pct };
+  });
+
+  // ── IDEIA 5: Cartões que vencem nos próximos 5 dias ────────────────────────
+  const today = new Date();
+  const urgentCards = cards.filter(c => c.dueDay && !c.isCheckingAccount && (c.dueDay - today.getDate()) >= 0 && (c.dueDay - today.getDate()) <= 5);
+
   return React.createElement("div", { style: { background: "#FFF", minHeight: "100dvh", paddingBottom: 100 } },
-    /* HEADER ATUALIZADO: REMOVIDO LUPA/SINO, ADICIONADO SAIR, BAIXADO ID/EMAIL */
+
+    /* HEADER */
     React.createElement("div", { style: { padding: "20px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200",marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || "PB"),
+        React.createElement("div", { onClick: onToggleDark, style: { width: 45, height: 45, borderRadius: 12, background: "#FF6200", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontWeight: 800, fontSize: 18, cursor: 'pointer' } }, user.avatar || "PB"),
         React.createElement("div", null,
+          /* IDEIA 3: Saudação dinâmica */
+          React.createElement("div", { style: { fontSize: 11, color: "#999", fontWeight: 600, marginBottom: 2 } }, greeting + ","),
           React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: "#000" } }, user.name),
-          /* ID e Email um pouco mais abaixo com marginTop: 6 */
-          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 12, opacity: 0.8 } }, 
+          React.createElement("div", { style: { fontSize: 11, color: "#666", marginTop: 12, opacity: 0.8 } },
             `ID: ${String(user.id).padStart(4, '0')} • ${user.email}`
           )
         )
       ),
-      /* Botão Desconectar */
-      React.createElement("div", { 
-        onClick: () => window.location.reload(), 
-        style: { cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } 
-      }, 
+      React.createElement("div", {
+        onClick: () => window.location.reload(),
+        style: { cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }
+      },
         React.createElement("span", { style: { fontSize: 20 } }, ""),
-        React.createElement("span", { style: { fontSize: 9, fontWeight: 700, marginTop: 12,color: "#FF6200" } }, "Sair")
+        React.createElement("span", { style: { fontSize: 9, fontWeight: 700, marginTop: 12, color: "#FF6200" } }, "Sair")
       )
     ),
 
-    /* CARD DE SALDO DETALHADO POR BANCO */
+    /* CARD DE SALDO */
     React.createElement("div", { style: { padding: "10px 20px" } },
       React.createElement(SCard, { style: { border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", padding: 20 } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 } },
@@ -839,8 +878,8 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
           React.createElement("span", { style: { fontSize: 18, cursor: 'pointer' }, onClick: () => onNav("checking-account") }, "›")
         ),
         React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#000", marginBottom: 15 } }, fmt(totalBalance)),
-        
-        /* LISTA DE BANCOS INDIVIDUAIS */
+
+        /* LISTA DE BANCOS */
         checkingCards.length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, padding: "10px 0", borderTop: "1px solid #F0F0F0" } },
           checkingCards.map((cc) => React.createElement("div", { key: cc.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
@@ -851,7 +890,7 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
           ))
         ),
 
-        /* RESUMO MÊS (RECEITAS/DESPESAS) */
+        /* RESUMO MÊS COM IDEIA 4: TENDÊNCIA */
         React.createElement("div", { style: { display: "flex", gap: 20, marginTop: 10, paddingTop: 15, borderTop: "1px solid #F0F0F0" } },
           React.createElement("div", null,
             React.createElement("div", { style: { fontSize: 10, color: "#666", fontWeight: 700, textTransform: 'uppercase' } }, "Entradas"),
@@ -859,20 +898,81 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
           ),
           React.createElement("div", null,
             React.createElement("div", { style: { fontSize: 10, color: "#666", fontWeight: 700, textTransform: 'uppercase' } }, "Saídas"),
-            React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#000" } }, fmt(monthExp))
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+              React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#000" } }, fmt(monthExp)),
+              trendPct !== null && React.createElement("span", { style: { fontSize: 10, fontWeight: 800, color: trendColor } },
+                `${trendIcon} ${trendPct}%`
+              )
+            )
+          )
+        ),
+
+        /* IDEIA 5: Aviso de vencimento próximo */
+        urgentCards.length > 0 && React.createElement("div", { style: { marginTop: 12, paddingTop: 12, borderTop: "1px solid #F0F0F0", display: "flex", flexDirection: "column", gap: 6 } },
+          urgentCards.map(c => {
+            const dias = c.dueDay - today.getDate();
+            return React.createElement("div", { key: c.id, style: { display: "flex", alignItems: "center", gap: 8, background: "#FFF9F5", borderRadius: 8, padding: "8px 10px" } },
+              React.createElement("span", { style: { fontSize: 13 } }, "💳"),
+              React.createElement("span", { style: { fontSize: 11, color: "#EA580C", fontWeight: 700, flex: 1 } },
+                `${c.name} vence ${dias === 0 ? "hoje" : `em ${dias} dia${dias > 1 ? "s" : ""}`}`
+              )
+            );
+          })
+        )
+      )
+    ),
+
+    /* IDEIA 1: GRÁFICO DE BARRAS ÚLTIMOS 4 MESES */
+    React.createElement("div", { style: { padding: "0 20px 10px" } },
+      React.createElement("div", { style: { background: "#F9F9F9", borderRadius: 16, padding: "14px 16px" } },
+        React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: "#999", textTransform: "uppercase", marginBottom: 12 } }, "Saídas — últimos 4 meses"),
+        React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-end", height: 60 } },
+          last4.map((b, i) =>
+            React.createElement("div", { key: i, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } },
+              React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: b.isCurrent ? "#32336e" : "#BBB" } },
+                b.total > 0 ? "R$" + Math.round(b.total / 1000) + "k" : ""
+              ),
+              React.createElement("div", { style: {
+                width: "100%",
+                height: Math.max(4, Math.round((b.total / maxBar) * 44)),
+                background: b.isCurrent ? "#32336e" : "#DCDCDC",
+                borderRadius: "6px 6px 0 0",
+                transition: "height 0.3s"
+              }}),
+              React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: b.isCurrent ? "#32336e" : "#999" } }, b.label)
+            )
           )
         )
       )
     ),
 
+    /* IDEIA 2: PROGRESSO DAS METAS */
+    goalsWithProgress.length > 0 && React.createElement("div", { style: { padding: "0 20px 10px" } },
+      React.createElement("div", { style: { background: "#F9F9F9", borderRadius: 16, padding: "14px 16px" } },
+        React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: "#999", textTransform: "uppercase", marginBottom: 12 } }, "Metas do mês"),
+        goalsWithProgress.map((g) => {
+          const barColor = g.pct >= 100 ? "#EF4444" : g.pct >= 80 ? "#F59E0B" : "#32336e";
+          return React.createElement("div", { key: g.id, style: { marginBottom: 10 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } },
+              React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#333" } }, g.category),
+              React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: barColor } }, `${g.pct}% • ${fmt(g.spent)} / ${fmt(g.monthlyLimit)}`)
+            ),
+            React.createElement("div", { style: { background: "#E5E7EB", borderRadius: 4, height: 6 } },
+              React.createElement("div", { style: { width: `${g.pct}%`, height: 6, background: barColor, borderRadius: 4, transition: "width 0.4s" } })
+            )
+          );
+        })
+      )
+    ),
+
     /* ALERTAS DE METAS */
     goalAlerts.length > 0 && React.createElement("div", { style: { padding: "5px 20px" } },
-      goalAlerts.map((g) => (
+      goalAlerts.map((g) =>
         React.createElement("div", { key: g.id, style: { background: "#FFFBEB", border: "1px solid #FEF3C7", borderRadius: 12, padding: "10px 15px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 } },
           React.createElement("span", null, "⚠️"),
           React.createElement("div", { style: { flex: 1, fontSize: 12, color: "#92400E", fontWeight: 600 } }, `Limite de ${g.category} próximo: ${fmt(g.monthlyLimit)}`)
         )
-      ))
+      )
     ),
 
     /* BOTÕES DE ATALHO */
@@ -883,34 +983,32 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
         { icon: "calendario.png", label: "Agenda", screen: "calendar" },
         { icon: "meta.png", label: "Metas", screen: "goals" },
         { icon: "recorrente.png", label: "Recorrente", screen: "recurring" }
-      ].map((a) => React.createElement("button", { 
-        key: a.screen, 
-        onClick: () => onNav(a.screen), 
-        style: { minWidth: 85, background: "#F2F2F2", border: "none", borderRadius: 16, padding: "15px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" } 
+      ].map((a) => React.createElement("button", {
+        key: a.screen,
+        onClick: () => onNav(a.screen),
+        style: { minWidth: 85, background: "#F2F2F2", border: "none", borderRadius: 16, padding: "15px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }
       },
         React.createElement("img", { src: a.icon, style: { width: 22, height: 22, objectFit: 'contain' } }),
         React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#333" } }, a.label)
       ))
     ),
 
-    /* ÚLTIMAS TRANSAÇÕES / EXTRATO */
+    /* ÚLTIMAS TRANSAÇÕES */
     React.createElement("div", { style: { padding: "10px 20px" } },
       React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
         React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: "#000" } }, "extrato"),
         React.createElement("button", { onClick: () => onNav("extract"), style: { background: "none", border: "none", color: "#FF6200", fontWeight: 700, fontSize: 14, cursor: 'pointer' } }, "ver tudo")
       ),
-
-      loading ? React.createElement(Loader, null) : 
+      loading ? React.createElement(Loader, null) :
       recent.length === 0 ? React.createElement("div", { style: { textAlign: "center", color: "#999", padding: 30 } }, "Nenhuma transação registrada.") :
       recent.map((e, idx) => React.createElement("div", { key: e.id, style: { marginBottom: 20 } },
-        /* AGRUPAMENTO POR DATA */
-        (idx === 0 || e.date !== recent[idx-1].date) && React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 12, marginTop: idx > 0 ? 10 : 0 } }, 
-           new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+        (idx === 0 || e.date !== recent[idx-1].date) && React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#333", marginBottom: 12, marginTop: idx > 0 ? 10 : 0 } },
+          new Date(e.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
         ),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
           React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
-            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, overflow: 'hidden' } }, 
-               catIcon[e.category] || "💸"
+            React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, overflow: 'hidden' } },
+              catIcon[e.category] || "💸"
             ),
             React.createElement("div", null,
               React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, e.desc),
@@ -927,13 +1025,19 @@ function DashboardScreen({ user, onNav, refresh, dark, onToggleDark }) {
     )
   );
 }
+
 function AddExpenseScreen({ user, onBack, onSaved }) {
   const [dbCards, setDbCards] = useState([]);
+  const [allExpenses, setAllExpenses] = useState([]);
   const today = (new Date()).toISOString().slice(0, 10);
   const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_EXPENSE[0], date: today, card: "", installment: "1" });
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [period, setPeriod] = useState(null);
+  // ── IDEIA 6: Autocomplete ──────────────────────────────────────────────────
+  const [descSuggestions, setDescSuggestions] = useState([]);
+  // ── IDEIA 9: Aviso de duplicata ────────────────────────────────────────────
+  const [isDuplicate, setIsDuplicate] = useState(false);
 
   useEffect(() => {
     dbByIndex("cards", "userId", user.id).then((cs) => {
@@ -946,6 +1050,8 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
         setForm((f) => ({ ...f, card: first.name, date: autoDate }));
       }
     });
+    // Carrega histórico de despesas para autocomplete e duplicata
+    dbByIndex("expenses", "userId", user.id).then(setAllExpenses);
   }, [user.id]);
 
   const handleCardChange = (cardName) => {
@@ -954,6 +1060,41 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     const p = c?.dueDay ? billingPeriod(c.dueDay) : null;
     setPeriod(p);
     setForm((f) => ({ ...f, card: cardName, date: autoDate }));
+  };
+
+  // ── IDEIA 6: Filtra sugestões ao digitar descrição ─────────────────────────
+  const handleDescChange = (val) => {
+    setForm(f => ({ ...f, desc: val }));
+    if (val.length >= 2) {
+      const uniq = [...new Set(allExpenses.map(e => e.desc))];
+      setDescSuggestions(uniq.filter(d => d.toLowerCase().includes(val.toLowerCase()) && d.toLowerCase() !== val.toLowerCase()).slice(0, 4));
+    } else {
+      setDescSuggestions([]);
+    }
+    // ── IDEIA 9: Checa duplicata em tempo real ─────────────────────────────
+    const nowM = new Date().getMonth() + 1;
+    const nowY = new Date().getFullYear();
+    const dup = allExpenses.some(e =>
+      e.desc.toLowerCase() === val.toLowerCase() &&
+      parseFloat(form.amount) > 0 &&
+      Math.abs(e.amount - parseFloat(form.amount)) < 0.01 &&
+      e.month === nowM && e.year === nowY
+    );
+    setIsDuplicate(dup);
+  };
+
+  // ── IDEIA 9: Reavalia duplicata ao mudar valor também ─────────────────────
+  const handleAmountChange = (val) => {
+    setForm(f => ({ ...f, amount: val }));
+    const nowM = new Date().getMonth() + 1;
+    const nowY = new Date().getFullYear();
+    const dup = allExpenses.some(e =>
+      e.desc.toLowerCase() === form.desc.toLowerCase() &&
+      form.desc.length > 0 &&
+      Math.abs(e.amount - parseFloat(val)) < 0.01 &&
+      e.month === nowM && e.year === nowY
+    );
+    setIsDuplicate(dup);
   };
 
   const dateOutOfPeriod = period && form.date && (form.date < period.start || form.date > period.end);
@@ -974,6 +1115,19 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     }));
   }, [form.amount, form.date, form.installment]);
 
+  // ── IDEIA 8: Valores frequentes do histórico ───────────────────────────────
+  const quickAmounts = useMemo(() => {
+    const freq = {};
+    allExpenses.forEach(e => {
+      const k = e.amount.toFixed(2);
+      freq[k] = (freq[k] || 0) + 1;
+    });
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([v]) => parseFloat(v));
+  }, [allExpenses]);
+
   const handle = async () => {
     if (!form.desc || !form.amount) return;
     setSaving(true);
@@ -982,7 +1136,6 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     const isChecking = selectedCardObj?.isCheckingAccount || false;
     const paidAt = (new Date()).toISOString();
     const installments = isChecking ? [{ date: form.date, amount: parseFloat(form.amount), label: "À vista" }] : installmentPreview;
-    
     for (const inst of installments) {
       const rec = {
         desc: installments.length > 1 ? `${form.desc} (${inst.label})` : form.desc,
@@ -1009,11 +1162,11 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     setTimeout(() => {
       setSaved(false);
       setForm((f) => ({ ...f, desc: "", amount: "", installment: "1" }));
+      setIsDuplicate(false);
       onSaved();
     }, 1600);
   };
 
-  // Estilos Itaú
   const itauInputStyle = {
     width: "100%",
     border: "none",
@@ -1039,85 +1192,120 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
 
   return React.createElement("div", { style: { background: "#FFFFFF", minHeight: "100dvh", paddingBottom: 40 } },
     React.createElement(TopBar, { title: "Nova Despesa", onBack }),
-    
+
     React.createElement("div", { style: { padding: "16px 24px", display: "flex", flexDirection: "column", gap: 20 } },
       saved && React.createElement(Toast, { msg: `${installmentPreview.length > 1 ? installmentPreview.length + "x salvas" : "Despesa salva"}!` }),
-      
+
       dbCards.length === 0 && React.createElement("div", { style: { background: "#FFF9F5", border: "1px solid #FFEDD5", borderRadius: 8, padding: 12, color: "#EA580C", fontSize: 13 } }, "⚠️ Nenhum cartão cadastrado. VÁ em Cartões e crie um primeiro!"),
 
-      // Descrição
-      React.createElement("div", null,
-        React.createElement("label", { style: labelStyle }, "Descrição"),
-        React.createElement("input", { 
-          value: form.desc, 
-          onChange: (e) => setForm({ ...form, desc: e.target.value }), 
-          placeholder: "Ex: Supermercado", 
-          style: itauInputStyle 
-        })
+      // ── IDEIA 9: Aviso de duplicata ──────────────────────────────────────
+      isDuplicate && React.createElement("div", { style: { background: "#FFFBEB", border: "1px solid #FEF3C7", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 } },
+        React.createElement("span", null, "⚠️"),
+        React.createElement("span", { style: { fontSize: 12, color: "#92400E", fontWeight: 600 } }, "Já existe uma despesa com esse nome e valor neste mês.")
       ),
 
-      // Valor
+      // Descrição com IDEIA 6: Autocomplete
+      React.createElement("div", { style: { position: "relative" } },
+        React.createElement("label", { style: labelStyle }, "Descrição"),
+        React.createElement("input", {
+          value: form.desc,
+          onChange: (e) => handleDescChange(e.target.value),
+          placeholder: "Ex: Supermercado",
+          style: itauInputStyle
+        }),
+        descSuggestions.length > 0 && React.createElement("div", { style: { position: "absolute", top: "100%", left: 0, right: 0, background: "#FFF", border: "1px solid #EEE", borderRadius: 10, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.08)", overflow: "hidden" } },
+          descSuggestions.map((s, i) => React.createElement("div", {
+            key: i,
+            onClick: () => { setForm(f => ({ ...f, desc: s })); setDescSuggestions([]); },
+            style: { padding: "10px 14px", fontSize: 13, color: "#333", fontWeight: 500, borderBottom: i < descSuggestions.length - 1 ? "1px solid #F5F5F5" : "none", cursor: "pointer", background: "#FFF" }
+          }, s))
+        )
+      ),
+
+      // Valor com IDEIA 7: Formatação em tempo real + IDEIA 8: Atalhos de valor
       React.createElement("div", null,
         React.createElement("label", { style: labelStyle }, "Valor total (R$)"),
-        React.createElement("input", { 
-          value: form.amount, 
-          onChange: (e) => setForm({ ...form, amount: e.target.value }), 
-          type: "number", 
-          placeholder: "0,00", 
-          style: { ...itauInputStyle, fontSize: "22px", fontWeight: "800", color: "#32336e" } 
-        })
+        React.createElement("input", {
+          value: form.amount,
+          onChange: (e) => handleAmountChange(e.target.value),
+          type: "number",
+          placeholder: "0,00",
+          style: { ...itauInputStyle, fontSize: "22px", fontWeight: "800", color: "#32336e" }
+        }),
+        // IDEIA 7: Valor formatado por extenso abaixo do input
+        parseFloat(form.amount) > 0 && React.createElement("div", { style: { fontSize: 12, color: "#999", fontWeight: 600, marginTop: 4 } },
+          fmt(parseFloat(form.amount))
+        ),
+        // IDEIA 8: Chips de valor rápido
+        quickAmounts.length > 0 && React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 } },
+          quickAmounts.map((v, i) => React.createElement("button", {
+            key: i,
+            onClick: () => handleAmountChange(String(v)),
+            style: {
+              padding: "5px 12px",
+              borderRadius: 20,
+              border: "1.5px solid",
+              borderColor: parseFloat(form.amount) === v ? "#32336e" : "#EAEAEA",
+              background: parseFloat(form.amount) === v ? "#32336e" : "transparent",
+              color: parseFloat(form.amount) === v ? "#FFF" : "#666",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: "pointer"
+            }
+          }, fmt(v)))
+        )
       ),
 
-      // Categoria e Cartão (Lado a Lado)
+      // Categoria e Cartão
       React.createElement("div", { style: { display: "flex", gap: 16 } },
         React.createElement("div", { style: { flex: 1 } },
           React.createElement("label", { style: labelStyle }, "Categoria"),
-          React.createElement("select", { 
-            value: form.category, 
-            onChange: (e) => setForm({ ...form, category: e.target.value }), 
-            style: itauInputStyle 
+          React.createElement("select", {
+            value: form.category,
+            onChange: (e) => setForm({ ...form, category: e.target.value }),
+            style: itauInputStyle
           }, CATEGORIES_EXPENSE.map((c) => React.createElement("option", { key: c }, c)))
         ),
         React.createElement("div", { style: { flex: 1 } },
           React.createElement("label", { style: labelStyle }, "Cartão"),
-          React.createElement("select", { 
-            value: form.card, 
-            onChange: (e) => handleCardChange(e.target.value), 
-            style: itauInputStyle 
-          }, 
+          React.createElement("select", {
+            value: form.card,
+            onChange: (e) => handleCardChange(e.target.value),
+            style: itauInputStyle
+          },
             dbCards.length === 0 && React.createElement("option", { value: "" }, "— sem cartões —"),
             dbCards.map((c) => React.createElement("option", { key: c.id, value: c.name }, c.name + (c.isCheckingAccount ? " 🏦" : "")))
           )
         )
       ),
 
-      // Parcelamento (Chips)
+      // Parcelamento
       !dbCards.find((c) => c.name === form.card)?.isCheckingAccount && React.createElement("div", null,
         React.createElement("label", { style: labelStyle }, "Parcelamento"),
-        React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 } }, 
+        React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 } },
           INSTALLMENT_OPTIONS.map((opt) => {
             const isSelected = form.installment === opt.value;
-            return React.createElement("button", { 
-              key: opt.value, 
-              onClick: () => setForm({ ...form, installment: opt.value }), 
-              style: { 
-                padding: "8px 14px", 
-                borderRadius: "20px", 
+            return React.createElement("button", {
+              key: opt.value,
+              onClick: () => setForm({ ...form, installment: opt.value }),
+              style: {
+                padding: "8px 14px",
+                borderRadius: "20px",
                 border: "1.5px solid",
-                borderColor: isSelected ? "#32336e" : "#EAEAEA", 
-                background: isSelected ? "#32336e" : "transparent", 
-                color: isSelected ? "#FFF" : "#666", 
-                fontSize: "12px", 
-                fontWeight: "700", 
-                cursor: "pointer" 
-              } 
+                borderColor: isSelected ? "#32336e" : "#EAEAEA",
+                background: isSelected ? "#32336e" : "transparent",
+                color: isSelected ? "#FFF" : "#666",
+                fontSize: "12px",
+                fontWeight: "700",
+                cursor: "pointer"
+              }
             }, opt.label);
           })
         )
       ),
 
       // Alertas de Conta Corrente e Período
-      dbCards.find((c) => c.name === form.card)?.isCheckingAccount ? 
+      dbCards.find((c) => c.name === form.card)?.isCheckingAccount ?
         React.createElement("div", { style: { background: "#F0F9FF", borderRadius: 8, padding: "12px", display: "flex", alignItems: "center", gap: 10, border: "1px solid #BAE6FD" } },
           React.createElement("span", { style: { fontSize: "16px" } }, "🏦"),
           React.createElement("span", { style: { fontSize: "12px", color: "#0369A1", fontWeight: "600" } }, "Conta corrente — despesa lançada como PAGO automaticamente.")
@@ -1130,11 +1318,11 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
       // Data
       React.createElement("div", null,
         React.createElement("label", { style: labelStyle }, "Data da 1ª parcela"),
-        React.createElement("input", { 
-          value: form.date, 
-          onChange: (e) => setForm({ ...form, date: e.target.value }), 
-          type: "date", 
-          style: itauInputStyle 
+        React.createElement("input", {
+          value: form.date,
+          onChange: (e) => setForm({ ...form, date: e.target.value }),
+          type: "date",
+          style: itauInputStyle
         }),
         dateOutOfPeriod && React.createElement("div", { style: { color: "#EA580C", fontSize: "11px", fontWeight: "600", marginTop: 6 } }, "⚠️ Data fora da janela de fatura atual.")
       ),
@@ -1173,6 +1361,7 @@ function AddExpenseScreen({ user, onBack, onSaved }) {
     )
   );
 }
+
 function AddIncomeScreen({ user, onBack, onSaved }) {
   const [dbCards, setDbCards] = useState([]);
   const [form, setForm] = useState({ desc: "", amount: "", category: CATEGORIES_INCOME[0], date: (new Date()).toISOString().slice(0, 10), checkingCardId: "" });

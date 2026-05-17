@@ -1802,46 +1802,87 @@ function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
   const [selCard, setSelCard] = useState("Todos");
   const [baixaExp, setBaixaExp] = useState(null);
   const [sortBy, setSortBy] = useState("date");
+
+  // ── IDEIA 1: Busca por texto ───────────────────────────────────────────────
+  const [searchText, setSearchText] = useState("");
+
+  // ── IDEIA 4: Seleção múltipla ──────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deletingMulti, setDeletingMulti] = useState(false);
+
+  // ── IDEIA 6: Swipe ────────────────────────────────────────────────────────
+  const [swipedId, setSwipedId] = useState(null);
+  const touchStartX = React.useRef(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [e, c] = await Promise.all([dbByIndex("expenses", "userId", user.id), dbByIndex("cards", "userId", user.id)]);
+    const [e, c] = await Promise.all([
+      dbByIndex("expenses", "userId", user.id),
+      dbByIndex("cards", "userId", user.id)
+    ]);
     setExpenses(e);
     setCards(c);
     setLoading(false);
   }, [user.id]);
-  useEffect(() => {
-    load();
-  }, [load, refresh]);
+
+  useEffect(() => { load(); }, [load, refresh]);
+
   const handleDelete = async (id) => {
     await dbDelete("expenses", id);
     await logAction(user.id, "expense", "delete", { id });
     load();
     if (onRefresh) onRefresh();
   };
+
+  // ── IDEIA 4: Deletar múltiplos ─────────────────────────────────────────────
+  const handleDeleteMulti = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} despesa(s)?`)) return;
+    setDeletingMulti(true);
+    for (const id of selectedIds) {
+      await dbDelete("expenses", id);
+      await logAction(user.id, "expense", "delete", { id });
+    }
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    setDeletingMulti(false);
+    load();
+    if (onRefresh) onRefresh();
+  };
+
+  const toggleSelect = (id) => {
+    const next = new Set(selectedIds);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedIds(next);
+  };
+
   const primaryCard = cards.find((c) => c.dueDay && !c.isCheckingAccount);
   const periods = primaryCard ? billingPeriods(primaryCard.dueDay, 8) : [];
   const expenseMonths = [...new Set(
     expenses.filter((e) => !e.isCheckingDebit).map((e) => e.month)
   )].sort((a, b) => b - a);
+
   const expInPeriod = (e, p) => {
     if (e.date && e.date.length === 10) return e.date >= p.start && e.date <= p.end;
     const pStartMonth = parseInt(p.start.slice(5, 7));
-    const pEndMonth = parseInt(p.end.slice(5, 7));
-    const pStartYear = parseInt(p.start.slice(0, 4));
-    const pEndYear = parseInt(p.end.slice(0, 4));
-    const eYear = e.year || (/* @__PURE__ */ new Date()).getFullYear();
+    const pEndMonth   = parseInt(p.end.slice(5, 7));
+    const pStartYear  = parseInt(p.start.slice(0, 4));
+    const pEndYear    = parseInt(p.end.slice(0, 4));
+    const eYear  = e.year  || new Date().getFullYear();
     const eMonth = e.month || 1;
-    const eVal = eYear * 100 + eMonth;
-    const sVal = pStartYear * 100 + pStartMonth;
-    const eEndV = pEndYear * 100 + pEndMonth;
+    const eVal   = eYear * 100 + eMonth;
+    const sVal   = pStartYear * 100 + pStartMonth;
+    const eEndV  = pEndYear  * 100 + pEndMonth;
     return eVal >= sVal && eVal <= eEndV;
   };
+
   const periodFiltered = (() => {
     const base = expenses.filter((e) => !e.isCheckingDebit);
     if (selPeriodKey === "all") return base;
     if (!primaryCard || periods.length === 0) {
       if (selPeriodKey === "current") {
-        const nowM = (/* @__PURE__ */ new Date()).getMonth() + 1;
+        const nowM = new Date().getMonth() + 1;
         return base.filter((e) => e.month === nowM);
       }
       const m = parseInt(selPeriodKey);
@@ -1852,33 +1893,379 @@ function HistoryExpenseScreen({ user, onBack, refresh, onRefresh, onEditExp }) {
     if (!p) return base;
     return base.filter((e) => expInPeriod(e, p));
   })();
-  const filtered = periodFiltered.filter((e) => (selCat === "Todos" || e.category === selCat) && (selCard === "Todos" || e.card === selCard)).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // ── IDEIA 1: aplica busca por texto ───────────────────────────────────────
+  const afterSearch = searchText.trim().length >= 2
+    ? periodFiltered.filter(e => e.desc?.toLowerCase().includes(searchText.toLowerCase()))
+    : periodFiltered;
+
+  const filtered = afterSearch.filter((e) =>
+    (selCat  === "Todos" || e.category === selCat) &&
+    (selCard === "Todos" || e.card     === selCard)
+  );
+
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === "amount") return b.amount - a.amount;
-    if (sortBy === "desc") return a.desc.localeCompare(b.desc);
+    if (sortBy === "desc")   return a.desc.localeCompare(b.desc);
     return new Date(b.date) - new Date(a.date);
   });
-  const total = filtered.reduce((a, b) => a + b.amount, 0);
+
+  const total       = filtered.reduce((a, b) => a + b.amount, 0);
+
+  // ── IDEIA 2: totais por status ─────────────────────────────────────────────
+  const totalPago    = filtered.filter(e => e.paid) .reduce((a, b) => a + b.amount, 0);
+  const totalPendente = filtered.filter(e => !e.paid).reduce((a, b) => a + b.amount, 0);
+
   const cardNames = [...new Set(expenses.map((e) => e.card).filter(Boolean))];
-  return /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 40 } }, /* @__PURE__ */ React.createElement(TopBar, { title: "Hist\xF3rico Despesas", onBack }), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 20px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, primaryCard ? "Per\xEDodo / Fatura" : "M\xEAs"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } }, /* @__PURE__ */ React.createElement(Chip, { label: primaryCard ? "Fatura Atual" : "M\xEAs Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }), /* @__PURE__ */ React.createElement(Chip, { label: "Todos", active: selPeriodKey === "all", onClick: () => setSelPeriodKey("all"), color: C.textMut }), primaryCard ? periods.slice(1).map((p) => /* @__PURE__ */ React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue })) : expenseMonths.map((m) => /* @__PURE__ */ React.createElement(Chip, { key: m, label: MONTHS[m - 1], active: selPeriodKey === String(m), onClick: () => setSelPeriodKey(String(m)), color: C.blue }))), selPeriodKey !== "all" && primaryCard && (() => {
-    const p = selPeriodKey === "current" ? periods[0] : periods.find((x) => x.key === selPeriodKey);
-    if (!p) return null;
-    return /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2, marginBottom: 2 } }, "\u{1F4C5} ", p.start.slice(8), "/", p.start.slice(5, 7), "/", p.start.slice(0, 4), " \u2192 ", p.end.slice(8), "/", p.end.slice(5, 7), "/", p.end.slice(0, 4));
-  })()), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 20px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Categoria"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } }, /* @__PURE__ */ React.createElement(Chip, { label: "Todos", active: selCat === "Todos", onClick: () => setSelCat("Todos"), color: C.purple }), CATEGORIES_EXPENSE.map((c) => /* @__PURE__ */ React.createElement(Chip, { key: c, label: c, active: selCat === c, onClick: () => setSelCat(c), color: C.purple })))), cardNames.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 20px 8px" } }, /* @__PURE__ */ React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Cart\xE3o"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } }, /* @__PURE__ */ React.createElement(Chip, { label: "Todos", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.accent }), cardNames.map((n) => /* @__PURE__ */ React.createElement(Chip, { key: n, label: n, active: selCard === n, onClick: () => setSelCard(n), color: C.accent })))), /* @__PURE__ */ React.createElement("div", { style: { padding: "4px 20px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { ...T.monoLg, color: C.red } }, "-", fmt(total)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { ...T.micro, color: C.textMut } }, filtered.length, " itens"), /* @__PURE__ */ React.createElement("select", { value: sortBy, onChange: (e) => setSortBy(e.target.value), style: { ...getInputStyle(), padding: "4px 8px", fontSize: 11, width: "auto", border: `1px solid ${C.border}`, borderRadius: 8 } }, /* @__PURE__ */ React.createElement("option", { value: "date" }, "\u2193 Data"), /* @__PURE__ */ React.createElement("option", { value: "amount" }, "\u2193 Valor"), /* @__PURE__ */ React.createElement("option", { value: "desc" }, "A-Z Nome")))), loading ? /* @__PURE__ */ React.createElement(Loader, null) : /* @__PURE__ */ React.createElement(SCard, null, sorted.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 24 } }, "Nenhuma despesa encontrada") : sorted.map((e) => /* @__PURE__ */ React.createElement("div", { key: e.id, style: { padding: "10px 0", borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: C.red + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 } }, catIcon[e.category] || "\u{1F4A1}"), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { color: C.textPri, fontSize: 14, fontWeight: 600 } }, e.desc), e.paid && /* @__PURE__ */ React.createElement("span", { style: { background: C.accent + "22", color: C.accentD, fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 10, flexShrink: 0 } }, "PAGO")), /* @__PURE__ */ React.createElement("div", { style: { color: C.textMut, fontSize: 12, marginTop: 2 } }, e.category, e.card ? ` \xB7 ${e.card}` : "", " \xB7 ", e.date.slice(8), "/", e.date.slice(5, 7), "/", e.date.slice(0, 4)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, paddingLeft: 46 } }, /* @__PURE__ */ React.createElement("span", { style: { color: C.red, fontSize: 15, fontWeight: 700, flex: 1 } }, "-", fmt(e.amount)), !e.paid && /* @__PURE__ */ React.createElement("button", { onClick: () => setBaixaExp(e), style: { background: C.blue + "18", border: `1px solid ${C.blue}44`, borderRadius: 8, padding: "5px 8px", color: C.blue, cursor: "pointer", fontSize: 11, fontWeight: 700 } }, "\u2193 Baixar"), onEditExp && /* @__PURE__ */ React.createElement("button", { onClick: () => onEditExp(e), style: { background: C.yellow + "22", border: `1px solid ${C.yellow}44`, borderRadius: 8, padding: "5px 8px", color: C.yellow, cursor: "pointer", fontSize: 11 } }, "\u270F\uFE0F"), /* @__PURE__ */ React.createElement("button", { onClick: () => handleDelete(e.id), style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 15 } }, "\u{1F5D1}")))))), baixaExp && /* @__PURE__ */ React.createElement(
-    BaixaTituloModal,
-    {
+
+  // ── IDEIA 7: Resumo por categoria ─────────────────────────────────────────
+  const catSummary = useMemo(() => {
+    const map = {};
+    filtered.forEach(e => {
+      map[e.category] = (map[e.category] || 0) + e.amount;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  }, [filtered]);
+  const maxCatVal = catSummary.length > 0 ? catSummary[0][1] : 1;
+
+  // ── IDEIA 3: agrupamento por data ─────────────────────────────────────────
+  const groupedByDate = useMemo(() => {
+    const groups = {};
+    sorted.forEach(e => {
+      const key = e.date || "1970-01-01";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(e);
+    });
+    return groups;
+  }, [sorted]);
+
+  const dateKeys = Object.keys(groupedByDate).sort((a, b) => {
+    if (sortBy === "date") return b.localeCompare(a);
+    return 0;
+  });
+
+  const formatDateLabel = (dateStr) => {
+    const today     = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const d = new Date(dateStr + "T12:00:00");
+    if (dateStr === today.toISOString().slice(0, 10))     return "Hoje";
+    if (dateStr === yesterday.toISOString().slice(0, 10)) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
+  };
+
+  // ── IDEIA 5: progresso de parcelamento ────────────────────────────────────
+  const installmentProgress = useMemo(() => {
+    const result = {};
+    expenses.forEach(e => {
+      if (!e.installmentGroup) return;
+      if (!result[e.installmentGroup]) result[e.installmentGroup] = { total: 0, paid: 0 };
+      result[e.installmentGroup].total++;
+      if (e.paid) result[e.installmentGroup].paid++;
+    });
+    return result;
+  }, [expenses]);
+
+  // ── IDEIA 6: handlers de swipe ────────────────────────────────────────────
+  const handleTouchStart = (e, id) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e, id) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (diff > 60)  setSwipedId(id);
+    if (diff < -30) setSwipedId(null);
+    touchStartX.current = null;
+  };
+
+  return React.createElement("div", { style: { background: C.bg, minHeight: "100dvh", paddingBottom: 40 } },
+    React.createElement(TopBar, { title: "Histórico Despesas", onBack,
+      action: React.createElement("button", {
+        onClick: () => { setSelectMode(!selectMode); setSelectedIds(new Set()); setSwipedId(null); },
+        style: { background: selectMode ? C.red + "22" : C.border + "88", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: selectMode ? C.red : C.textSec, cursor: "pointer" }
+      }, selectMode ? "Cancelar" : "Selecionar")
+    }),
+
+    /* ── IDEIA 1: Campo de busca ── */
+    React.createElement("div", { style: { padding: "8px 20px 0" } },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 14px" } },
+        React.createElement("span", { style: { fontSize: 14, color: C.textMut } }, "🔍"),
+        React.createElement("input", {
+          value: searchText,
+          onChange: e => setSearchText(e.target.value),
+          placeholder: "Buscar despesa...",
+          style: { border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 14, color: C.textPri, fontFamily: "'Inter',sans-serif" }
+        }),
+        searchText.length > 0 && React.createElement("button", {
+          onClick: () => setSearchText(""),
+          style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 16, lineHeight: 1 }
+        }, "✕")
+      )
+    ),
+
+    /* ── Período ── */
+    React.createElement("div", { style: { padding: "8px 20px 0" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, primaryCard ? "Período / Fatura" : "Mês"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
+        React.createElement(Chip, { label: primaryCard ? "Fatura Atual" : "Mês Atual", active: selPeriodKey === "current", onClick: () => setSelPeriodKey("current"), color: C.blue }),
+        React.createElement(Chip, { label: "Todos", active: selPeriodKey === "all", onClick: () => setSelPeriodKey("all"), color: C.textMut }),
+        primaryCard
+          ? periods.slice(1).map((p) => React.createElement(Chip, { key: p.key, label: p.label, active: selPeriodKey === p.key, onClick: () => setSelPeriodKey(p.key), color: C.blue }))
+          : expenseMonths.map((m) => React.createElement(Chip, { key: m, label: MONTHS[m - 1], active: selPeriodKey === String(m), onClick: () => setSelPeriodKey(String(m)), color: C.blue }))
+      ),
+      selPeriodKey !== "all" && primaryCard && (() => {
+        const p = selPeriodKey === "current" ? periods[0] : periods.find((x) => x.key === selPeriodKey);
+        if (!p) return null;
+        return React.createElement("div", { style: { fontSize: 12, color: C.textSec, marginTop: 2, marginBottom: 2 } },
+          "📅 ", p.start.slice(8), "/", p.start.slice(5, 7), "/", p.start.slice(0, 4),
+          " → ", p.end.slice(8), "/", p.end.slice(5, 7), "/", p.end.slice(0, 4)
+        );
+      })()
+    ),
+
+    /* ── Categoria ── */
+    React.createElement("div", { style: { padding: "6px 20px 0" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Categoria"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
+        React.createElement(Chip, { label: "Todos", active: selCat === "Todos", onClick: () => setSelCat("Todos"), color: C.purple }),
+        CATEGORIES_EXPENSE.map((c) => React.createElement(Chip, { key: c, label: c, active: selCat === c, onClick: () => setSelCat(c), color: C.purple }))
+      )
+    ),
+
+    /* ── Cartão ── */
+    cardNames.length > 1 && React.createElement("div", { style: { padding: "6px 20px 8px" } },
+      React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 5 } }, "Cartão"),
+      React.createElement("div", { style: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 } },
+        React.createElement(Chip, { label: "Todos", active: selCard === "Todos", onClick: () => setSelCard("Todos"), color: C.accent }),
+        cardNames.map((n) => React.createElement(Chip, { key: n, label: n, active: selCard === n, onClick: () => setSelCard(n), color: C.accent }))
+      )
+    ),
+
+    /* ── IDEIA 2: Resumo de status ── */
+    React.createElement("div", { style: { padding: "4px 20px 8px" } },
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
+        React.createElement("div", { style: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 10px" } },
+          React.createElement("div", { style: { fontSize: 9, color: C.textMut, fontWeight: 800, textTransform: "uppercase", marginBottom: 3 } }, "Total"),
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: C.red } }, fmt(total))
+        ),
+        React.createElement("div", { style: { background: "#F0FDF4", border: "0.5px solid #BBF7D0", borderRadius: 12, padding: "10px 10px" } },
+          React.createElement("div", { style: { fontSize: 9, color: "#059669", fontWeight: 800, textTransform: "uppercase", marginBottom: 3 } }, "Pago"),
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#059669" } }, fmt(totalPago))
+        ),
+        React.createElement("div", { style: { background: "#FFF9F5", border: "0.5px solid #FFEDD5", borderRadius: 12, padding: "10px 10px" } },
+          React.createElement("div", { style: { fontSize: 9, color: "#EA580C", fontWeight: 800, textTransform: "uppercase", marginBottom: 3 } }, "Pendente"),
+          React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#EA580C" } }, fmt(totalPendente))
+        )
+      )
+    ),
+
+    /* ── IDEIA 7: Mini gráfico por categoria ── */
+    catSummary.length > 0 && React.createElement("div", { style: { padding: "0 20px 12px" } },
+      React.createElement("div", { style: { background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px" } },
+        React.createElement("div", { style: { ...T.micro, color: C.textMut, marginBottom: 10 } }, "Maiores gastos por categoria"),
+        catSummary.map(([cat, val], i) =>
+          React.createElement("div", { key: cat, style: { marginBottom: 8 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                React.createElement("span", { style: { fontSize: 13 } }, catIcon[cat] || "💡"),
+                React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: C.textPri } }, cat)
+              ),
+              React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.red } }, fmt(val))
+            ),
+            React.createElement("div", { style: { background: C.border, borderRadius: 4, height: 5, overflow: "hidden" } },
+              React.createElement("div", { style: {
+                width: `${(val / maxCatVal) * 100}%`,
+                height: "100%",
+                background: COLORS[i % COLORS.length],
+                borderRadius: 4,
+                transition: "width 0.4s"
+              }})
+            )
+          )
+        )
+      )
+    ),
+
+    /* ── Cabeçalho da lista com ordenação ── */
+    React.createElement("div", { style: { padding: "0 20px 8px" } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        React.createElement("span", { style: { ...T.micro, color: C.textMut } }, filtered.length, " itens"),
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+          selectMode && selectedIds.size > 0 && React.createElement("button", {
+            onClick: handleDeleteMulti,
+            disabled: deletingMulti,
+            style: { background: C.red + "18", border: `1px solid ${C.red}44`, borderRadius: 8, padding: "4px 10px", color: C.red, cursor: "pointer", fontSize: 11, fontWeight: 700 }
+          }, deletingMulti ? "Excluindo..." : `🗑 Excluir (${selectedIds.size})`),
+          React.createElement("select", {
+            value: sortBy,
+            onChange: (e) => setSortBy(e.target.value),
+            style: { ...getInputStyle(), padding: "4px 8px", fontSize: 11, width: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }
+          },
+            React.createElement("option", { value: "date" },   "↓ Data"),
+            React.createElement("option", { value: "amount" }, "↓ Valor"),
+            React.createElement("option", { value: "desc" },   "A-Z Nome")
+          )
+        )
+      )
+    ),
+
+    /* ── IDEIA 3 + 5 + 6: Lista agrupada por data com swipe ── */
+    loading ? React.createElement(Loader, null) :
+    React.createElement("div", { style: { padding: "0 20px" } },
+      sorted.length === 0
+        ? React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 24 } }, "Nenhuma despesa encontrada")
+        : (sortBy === "date" ? dateKeys : ["__flat__"]).map((dateKey) => {
+            const items = sortBy === "date" ? groupedByDate[dateKey] : sorted;
+
+            return React.createElement("div", { key: dateKey },
+
+              /* ── IDEIA 3: Cabeçalho de data ── */
+              sortBy === "date" && React.createElement("div", { style: {
+                fontSize: 12, fontWeight: 800, color: C.textSec,
+                padding: "12px 0 6px",
+                display: "flex", justifyContent: "space-between", alignItems: "center"
+              } },
+                React.createElement("span", null, formatDateLabel(dateKey)),
+                React.createElement("span", { style: { color: C.red, fontWeight: 700 } },
+                  fmt(items.reduce((a, b) => a + b.amount, 0))
+                )
+              ),
+
+              React.createElement(SCard, { style: { padding: 0, overflow: "hidden", marginBottom: 12 } },
+                items.map((e, idx) => {
+                  const isSwiped  = swipedId === e.id;
+                  const isChecked = selectedIds.has(e.id);
+
+                  // ── IDEIA 5: Progresso parcelas ────────────────────────
+                  const prog = e.installmentGroup ? installmentProgress[e.installmentGroup] : null;
+                  const progPct = prog ? Math.round((prog.paid / prog.total) * 100) : null;
+
+                  return React.createElement("div", {
+                    key: e.id,
+                    style: { position: "relative", overflow: "hidden" }
+                  },
+                    /* ── IDEIA 6: Painel de ações de swipe ── */
+                    React.createElement("div", { style: {
+                      position: "absolute", right: 0, top: 0, bottom: 0,
+                      display: "flex", alignItems: "stretch",
+                      transform: isSwiped ? "translateX(0)" : "translateX(100%)",
+                      transition: "transform 0.25s ease"
+                    } },
+                      !e.paid && React.createElement("button", {
+                        onClick: () => { setSwipedId(null); setBaixaExp(e); },
+                        style: { background: C.blue, border: "none", padding: "0 14px", color: "#FFF", fontSize: 11, fontWeight: 800, cursor: "pointer" }
+                      }, "↓\nBaixar"),
+                      onEditExp && React.createElement("button", {
+                        onClick: () => { setSwipedId(null); onEditExp(e); },
+                        style: { background: C.yellow, border: "none", padding: "0 14px", color: "#FFF", fontSize: 11, fontWeight: 800, cursor: "pointer" }
+                      }, "✏️\nEditar"),
+                      React.createElement("button", {
+                        onClick: () => { setSwipedId(null); handleDelete(e.id); },
+                        style: { background: C.red, border: "none", padding: "0 14px", color: "#FFF", fontSize: 11, fontWeight: 800, cursor: "pointer" }
+                      }, "🗑\nExcluir")
+                    ),
+
+                    /* ── Item ── */
+                    React.createElement("div", {
+                      onTouchStart: (ev) => !selectMode && handleTouchStart(ev, e.id),
+                      onTouchEnd:   (ev) => !selectMode && handleTouchEnd(ev, e.id),
+                      onClick: () => { if (selectMode) { toggleSelect(e.id); return; } if (isSwiped) setSwipedId(null); },
+                      style: {
+                        display: "flex", alignItems: "flex-start", gap: 10,
+                        padding: "12px 14px",
+                        borderBottom: idx < items.length - 1 ? `1px solid ${C.border}` : "none",
+                        background: isChecked ? C.accent + "11" : C.card,
+                        transform: isSwiped ? "translateX(-148px)" : "translateX(0)",
+                        transition: "transform 0.25s ease",
+                        cursor: selectMode ? "pointer" : "default"
+                      }
+                    },
+                      /* Checkbox no modo seleção */
+                      selectMode && React.createElement("div", {
+                        style: {
+                          width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 2,
+                          border: `2px solid ${isChecked ? C.accent : C.border}`,
+                          background: isChecked ? C.accent : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center"
+                        }
+                      }, isChecked && React.createElement("span", { style: { color: "#FFF", fontSize: 12, lineHeight: 1 } }, "✓")),
+
+                      /* Ícone categoria */
+                      React.createElement("div", { style: {
+                        width: 36, height: 36, borderRadius: 10,
+                        background: C.red + "18",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 16, flexShrink: 0
+                      } }, catIcon[e.category] || "💡"),
+
+                      /* Conteúdo */
+                      React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
+                          React.createElement("span", { style: { color: C.textPri, fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 } }, e.desc),
+                          e.paid && React.createElement("span", { style: { background: C.accent + "22", color: C.accentD, fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 10, flexShrink: 0 } }, "PAGO")
+                        ),
+                        React.createElement("div", { style: { color: C.textMut, fontSize: 12, marginTop: 2 } },
+                          e.category,
+                          e.card ? ` · ${e.card}` : "",
+                          " · ", e.date.slice(8), "/", e.date.slice(5, 7), "/", e.date.slice(0, 4)
+                        ),
+
+                        /* ── IDEIA 5: Barra de progresso de parcelas ── */
+                        prog && React.createElement("div", { style: { marginTop: 6 } },
+                          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 2 } },
+                            React.createElement("span", { style: { fontSize: 10, color: C.textMut, fontWeight: 600 } },
+                              `Parcela ${e.installmentLabel || "?"} · ${prog.paid}/${prog.total} pagas`
+                            ),
+                            React.createElement("span", { style: { fontSize: 10, color: progPct === 100 ? C.accent : C.blue, fontWeight: 700 } }, `${progPct}%`)
+                          ),
+                          React.createElement("div", { style: { background: C.border, borderRadius: 3, height: 4, overflow: "hidden" } },
+                            React.createElement("div", { style: {
+                              width: `${progPct}%`, height: "100%",
+                              background: progPct === 100 ? C.accent : C.blue,
+                              borderRadius: 3, transition: "width 0.4s"
+                            }})
+                          )
+                        )
+                      ),
+
+                      /* Valor + ações (modo não-swipe) */
+                      React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 } },
+                        React.createElement("span", { style: { color: C.red, fontSize: 14, fontWeight: 700 } }, "-", fmt(e.amount)),
+                        !selectMode && React.createElement("div", { style: { display: "flex", gap: 4 } },
+                          !e.paid && React.createElement("button", {
+                            onClick: () => setBaixaExp(e),
+                            style: { background: C.blue + "18", border: `1px solid ${C.blue}44`, borderRadius: 7, padding: "4px 7px", color: C.blue, cursor: "pointer", fontSize: 10, fontWeight: 700 }
+                          }, "↓ Baixar"),
+                          onEditExp && React.createElement("button", {
+                            onClick: () => onEditExp(e),
+                            style: { background: C.yellow + "22", border: `1px solid ${C.yellow}44`, borderRadius: 7, padding: "4px 7px", color: C.yellow, cursor: "pointer", fontSize: 11 }
+                          }, "✏️"),
+                          React.createElement("button", {
+                            onClick: () => handleDelete(e.id),
+                            style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 14 }
+                          }, "🗑")
+                        )
+                      )
+                    )
+                  );
+                })
+              )
+            );
+          })
+    ),
+
+    baixaExp && React.createElement(BaixaTituloModal, {
       userId: user.id,
       expense: baixaExp,
       allExpenses: expenses,
       cards,
       onClose: () => setBaixaExp(null),
-      onSaved: () => {
-        setBaixaExp(null);
-        load();
-      }
-    }
-  ));
+      onSaved: () => { setBaixaExp(null); load(); }
+    })
+  );
 }
+
 function HistoryIncomeScreen({ user, onBack, refresh, onRefresh, onEditInc }) {
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -2430,63 +2817,123 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 
   /* ── LANÇAMENTOS CONTA CORRENTE ── */
   const renderCheckingLancamentos = (card) => {
-    const cardIncomes = incomes
-      .filter(i => i && (i.card === card.name || i.account === card.name))
-      .map(i => ({ ...i, _tipo: "receita", _sortDate: i.date || "1970-01-01" }));
+  const cardIncomes = incomes
+    .filter(i => i && (i.card === card.name || i.account === card.name))
+    .map(i => ({ ...i, _tipo: "receita", _sortDate: i.date || "1970-01-01" }));
 
-    const debits = expenses
-      .filter(e => e && e.isCheckingDebit && e.card === card.name)
-      .map(e => ({ ...e, _tipo: "debito", _sortDate: e.date || "1970-01-01" }));
+  const debits = expenses
+    .filter(e => e && e.isCheckingDebit && e.card === card.name)
+    .map(e => ({ ...e, _tipo: "debito", _sortDate: e.date || "1970-01-01" }));
 
-    const paidHere = expenses
-      .filter(e => e && !e.isCheckingDebit && e.paid && e.paidFromCard === card.name)
-      .map(e => ({ ...e, _tipo: "pago_avista", _sortDate: e.paidAt ? e.paidAt.slice(0, 10) : (e.date || "1970-01-01") }));
+  const paidHere = expenses
+    .filter(e => e && !e.isCheckingDebit && e.paid && e.paidFromCard === card.name)
+    .map(e => ({ ...e, _tipo: "pago_avista", _sortDate: e.paidAt ? e.paidAt.slice(0, 10) : (e.date || "1970-01-01") }));
 
-    const all = [...cardIncomes, ...debits, ...paidHere]
-      .sort((a, b) => (b._sortDate || "").localeCompare(a._sortDate || ""));
+  const all = [...cardIncomes, ...debits, ...paidHere]
+    .sort((a, b) => (b._sortDate || "").localeCompare(a._sortDate || ""));
 
-    if (all.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
+  if (all.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-    const byDate = {};
-    all.forEach(item => {
-      const key = item._sortDate || "1970-01-01";
-      if (!byDate[key]) byDate[key] = [];
-      byDate[key].push(item);
-    });
+  const byDate = {};
+  all.forEach(item => {
+    const key = item._sortDate || "1970-01-01";
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(item);
+  });
 
-    return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
-      const safeDate = date !== "1970-01-01" ? date : null;
-      return React.createElement("div", { key: date, style: { marginBottom: 20 } },
-        React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-          safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
-        ),
-        byDate[date].map((item, idx) => {
-          const isReceita = item._tipo === "receita";
-          const isDebito = item._tipo === "debito";
-          const color = isReceita ? "#059669" : "#EF4444";
-          const label = isReceita ? "ENTRADA" : isDebito ? "PAGAMENTO" : "PAGO AVISTA";
-          const labelBg = isReceita ? "#DCFCE7" : "#FEE2E2";
-          const labelColor = isReceita ? "#059669" : "#DC2626";
-
-          return React.createElement("div", { key: item.id + item._tipo + idx, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" } },
-            React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
-              React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
-              React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-                React.createElement("span", { style: { fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: labelBg, color: labelColor } }, label),
-                item.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                  new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
-                ),
-                !isReceita && !isDebito && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } }, "cartão " + item.card)
-              )
-            ),
-            React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color, flexShrink: 0 } },
-              (isReceita ? "+" : "-") + " " + fmt(item.amount || 0)
-            )
-          );
-        })
-      );
-    });
+  // Configuração visual por tipo
+  const tipoConfig = {
+    receita: {
+      icon:       "💰",
+      label:      "ENTRADA",
+      labelBg:    "#DCFCE7",
+      labelColor: "#059669",
+      amountColor:"#059669",
+      iconBg:     "#DCFCE7",
+      sinal:      "+"
+    },
+    debito: {
+      icon:       "💳",
+      label:      "BAIXA DE FATURA",
+      labelBg:    "#EFF6FF",
+      labelColor: "#2563EB",
+      amountColor:"#2563EB",
+      iconBg:     "#EFF6FF",
+      sinal:      "-"
+    },
+    pago_avista: {
+      icon:       "💸",
+      label:      "DÉBITO DIRETO",
+      labelBg:    "#FEE2E2",
+      labelColor: "#DC2626",
+      amountColor:"#DC2626",
+      iconBg:     "#FEE2E2",
+      sinal:      "-"
+    }
   };
+
+  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+    const safeDate = date !== "1970-01-01" ? date : null;
+    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
+        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
+      ),
+      byDate[date].map((item, idx) => {
+        const cfg = tipoConfig[item._tipo] || tipoConfig.pago_avista;
+
+        return React.createElement("div", {
+          key: item.id + item._tipo + idx,
+          style: {
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 0",
+            borderBottom: "0.5px solid #F0F0F0",
+            // linha esquerda colorida por tipo
+            borderLeft: `3px solid ${cfg.labelColor}`,
+            paddingLeft: 10,
+            marginLeft: -13
+          }
+        },
+          // Ícone
+          React.createElement("div", { style: {
+            width: 36, height: 36, borderRadius: 10,
+            background: cfg.iconBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 16, flexShrink: 0
+          } }, cfg.icon),
+
+          // Conteúdo
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
+            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+              // Badge de tipo
+              React.createElement("span", { style: {
+                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
+                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
+              } }, cfg.label),
+              // Data do pagamento
+              item.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
+                new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+              ),
+              // Cartão de origem (só para baixa de fatura)
+              item._tipo === "debito" && item.refExpenseId && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
+                item.card ? `fatura ${item.card}` : ""
+              ),
+              // Cartão de origem (só para pago avista)
+              item._tipo === "pago_avista" && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
+                `cartão ${item.card}`
+              )
+            )
+          ),
+
+          // Valor
+          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
+            `${cfg.sinal} ${fmt(item.amount || 0)}`
+          )
+        );
+      })
+    );
+  });
+};
 
   /* ── RENDER DO CARD VISUAL ── */
   const renderCard = (card, index, isChecking) => {

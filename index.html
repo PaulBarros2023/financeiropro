@@ -3007,10 +3007,29 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
     ...(selTipo === "todos" || selTipo === "receita" ? baseInc.map((i) => ({ ...i, _tipo: "receita" })) : [])
   ];
 
-  const sorted = [...unified].sort((a, b) => {
+  // ── IDEIA 5: Ordenação inteligente — filha parcial sempre colada abaixo da original ──
+  const sortedRaw = [...unified].sort((a, b) => {
     if (sortBy === "amount") return b.amount - a.amount;
     return new Date(b.date) - new Date(a.date);
   });
+
+  const sorted = (() => {
+    // Separa itens que são filhos parciais para reposicioná-los
+    const filhos = sortedRaw.filter(item => item._tipo === "despesa" && !!item.partialPaymentRef);
+    const filhosIds = new Set(filhos.map(f => f.id));
+    const base = sortedRaw.filter(item => !filhosIds.has(item.id));
+
+    const result = [];
+    base.forEach(item => {
+      result.push(item);
+      // Logo após a original, injeta todos os filhos dela na ordem
+      if (item._tipo === "despesa" && !item.partialPaymentRef) {
+        const filhosDesteItem = filhos.filter(f => f.partialPaymentRef === item.id);
+        filhosDesteItem.forEach(f => result.push(f));
+      }
+    });
+    return result;
+  })();
 
   const totalEntrada = baseInc.reduce((a, b) => a + b.amount, 0);
   const totalDespesasPeriodo = baseExp.reduce((a, b) => a + b.amount, 0);
@@ -3094,36 +3113,72 @@ function ExtractScreen({ user, onBack, refresh, onRefresh }) {
         const showDate = i === 0 || item.date !== sorted[i-1].date;
         const itemColor = isRec ? "#059669" : (item.paid ? "#2563EB" : "#64748b");
 
-        // ── LÓGICA DE PARCIAL ──────────────────────────────────────────────
-        // isOriginalComParcial: despesa que gerou um pagamento parcial (tem partialPaymentRef apontando para ela)
-        // isFilhoParcial: despesa gerada pelo pagamento parcial (tem partialPaymentRef preenchido)
+        // ── Detecção de parcial ────────────────────────────────────────────
+        const isFilhoParcial  = !isRec && !!item.partialPaymentRef;
         const isOriginalComParcial = !isRec && !item.partialPaymentRef && expenses.some(e => e.partialPaymentRef === item.id);
-        const isFilhoParcial = !isRec && !!item.partialPaymentRef;
 
-        // Sufixo no cartão/mês da linha de descrição
+        // ── IDEIA 2: Saldo restante da original ───────────────────────────
+        const filhosDestItem = isOriginalComParcial
+          ? expenses.filter(e => e.partialPaymentRef === item.id)
+          : [];
+        const totalParcialPago = filhosDestItem.reduce((sum, f) => sum + f.amount, 0);
+        const restante = isOriginalComParcial ? item.amount - totalParcialPago : 0;
+
+        // ── IDEIA 3: Ícone diferente para filha parcial ───────────────────
+        const icone = isRec ? "💰" : isFilhoParcial ? "⚡" : (catIcon[item.category] || "💸");
+
+        // Sufixo no cartão
         const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";
 
+        // ── IDEIA 4: Badge de status ──────────────────────────────────────
+        const badgeLabel = item.paid ? "CONCLUÍDO" : isOriginalComParcial ? "PARCIAL" : "ABERTO";
+        const badgeBg    = item.paid ? "#2563EB"   : isOriginalComParcial ? "#F59E0B" : "transparent";
+        const badgeColor = item.paid ? "#FFF"      : isOriginalComParcial ? "#FFF"    : itemColor;
+        const badgeBorder = (!item.paid && !isOriginalComParcial) ? `1px solid ${itemColor}` : "none";
+
+        // ── IDEIA 1: Indentação e linha de conexão para filha parcial ─────
+        const filhaStyle = isFilhoParcial ? {
+          marginLeft: 20,
+          paddingLeft: 16,
+          borderLeft: "2px solid #BFDBFE",
+          position: "relative"
+        } : {};
+
         return React.createElement("div", { key: item.id + (isRec ? "i" : "e") },
-          showDate && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
+          // Cabeçalho de data — filha parcial não exibe data separada pois fica colada
+          showDate && !isFilhoParcial && React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#333", marginTop: 20, marginBottom: 12 } },
             new Date(item.date + "T12:00:00").toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
           ),
-          React.createElement("div", { style: { padding: "15px 0", borderBottom: "0.5px solid #F0F0F0" } },
+
+          React.createElement("div", { style: { padding: "15px 0", borderBottom: "0.5px solid #F0F0F0", ...filhaStyle } },
+
+            // Bolinha de conexão no topo da linha esquerda da filha
+            isFilhoParcial && React.createElement("div", { style: { position: "absolute", left: -5, top: 24, width: 8, height: 8, borderRadius: 4, background: "#93C5FD" } }),
+
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
               React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
-                React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: itemColor } }, isRec ? "💰" : (catIcon[item.category] || "💸")),
+                React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: isFilhoParcial ? "#EFF6FF" : "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: itemColor } }, icone),
                 React.createElement("div", { style: { flex: 1 } },
                   React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
                   React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: 4 } }, 
                     React.createElement("span", null, `${MONTHS[item.month-1]} • ${item.card || 'Sem cartão'}${cardSuffix}`),
                     item.paid && item.paidFromCard && React.createElement("span", { style: { color: "#2563EB", fontWeight: 600 } }, ` • pagto via: ${item.paidFromCard}`)
+                  ),
+                  // ── IDEIA 2: Linha de saldo restante ──────────────────
+                  isOriginalComParcial && restante > 0 && React.createElement("div", { style: { fontSize: 10, color: "#EA580C", fontWeight: 700, marginTop: 4 } },
+                    `Restante: ${fmt(restante)}`
                   )
                 )
               ),
               React.createElement("div", { style: { textAlign: "right" } },
                 React.createElement("div", { style: { fontWeight: 800, color: itemColor, fontSize: 14 } }, `${isRec ? "+" : "-"} ${fmt(item.amount)}`),
-                React.createElement("div", { style: { fontSize: 10, fontWeight: 800, color: itemColor, marginTop: 4 } }, item.paid ? "CONCLUÍDO" : "ABERTO")
+                // ── IDEIA 4: Badge colorido ────────────────────────────
+                React.createElement("div", { style: { display: "inline-block", fontSize: 9, fontWeight: 800, color: badgeColor, background: badgeBg, border: badgeBorder, borderRadius: 6, padding: "2px 6px", marginTop: 4 } },
+                  badgeLabel
+                )
               )
             ),
+
             /* BOTÕES DE AÇÃO */
             React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 } },
               !isRec && !item.paid && React.createElement(React.Fragment, null,
@@ -3158,6 +3213,7 @@ const navItems = [
   { id: "cards", icon: "cartao.png", label: "Cartões" },
   { id: "limits", icon: "limites.png", label: "Limites" }
 ];
+
 
 function BottomNav({ active, onNav }) {
   const screenName = typeof active === "string" ? active : active?.name || "dashboard";

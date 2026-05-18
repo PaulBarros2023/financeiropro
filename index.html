@@ -691,7 +691,7 @@ function CardModal({ userId, card, onClose, onSaved }) {
       ),
 
       /* Corpo */
-      React.createElement("div", { style: { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 22, paddingBottom: "max(env(safe-area-inset-bottom), 32px)" } },
+      React.createElement("div", { style: { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 22, paddingBottom: "max(env(safe-area-inset-bottom), 90px)" } },
 
         err && React.createElement("div", { style: { fontSize: 12, color: "#EF4444", fontWeight: 600 } }, err),
 
@@ -3046,7 +3046,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   // Configuração visual por tipo
   const tipoConfig = {
     receita: {
-      icon:       "💰",
+      icon:       "+",
       label:      "ENTRADA",
       labelBg:    "#DCFCE7",
       labelColor: "#059669",
@@ -3055,7 +3055,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       sinal:      "+"
     },
     debito: {
-      icon:       "💳",
+      icon:       "-",
       label:      "BAIXA DE FATURA",
       labelBg:    "#EFF6FF",
       labelColor: "#2563EB",
@@ -3064,7 +3064,7 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
       sinal:      "-"
     },
     pago_avista: {
-      icon:       "💸",
+      icon:       "P",
       label:      "DÉBITO DIRETO",
       labelBg:    "#FEE2E2",
       labelColor: "#DC2626",

@@ -2925,8 +2925,8 @@ const load = useCallback(async () => {
 setLoading(true);
 const [c, e, i] = await Promise.all([
 dbByIndex("cards", "userId", user.id),
-dbByIndex("incomes", "userId", user.id),
-dbByIndex("expenses", "userId", user.id)
+dbByIndex("expenses", "userId", user.id),
+dbByIndex("incomes", "userId", user.id)
 ]);
 setCards(c);
 setExpenses(e);
@@ -2953,7 +2953,7 @@ const handleBaixaSaved = () => { setBaixaCard(null); load(); onRefresh(); };
 
 /* ── RESET COMPLETO DO BANCO ── */
 const handleResetDB = async () => {
-if (!window.confirm("⚠️ Isso vai apagar todos os dados (cartões, despesas, receitas).\n\nTem certeza?")) return;
+if (!window.confirm("⚠️ Isso vai apagar TODOS os dados (cartões, despesas, receitas).\n\nTem certeza?")) return;
 if (!window.confirm("Confirma mesmo? Não tem como desfazer.")) return;
 setResetting(true);
 try {
@@ -2973,7 +2973,6 @@ setResetting(false);
 };
 
 const checkingCards = cards.filter((c) => c.isCheckingAccount);
-
 /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
 const renderCreditLancamentos = (card) => {
   const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
@@ -2986,6 +2985,7 @@ const renderCreditLancamentos = (card) => {
     byDate[key].push(e);
   });
 
+  // Configuração visual idêntica à Conta Corrente mapeada por estado da despesa do cartão
   const tipoConfig = {
     receita: {
       icon:        "R",
@@ -3007,7 +3007,7 @@ const renderCreditLancamentos = (card) => {
     },
     pago_avista: {
       icon:        "D",
-      label:       "Débito aberto",
+      label:       "Debito aberto",
       labelBg:     "#FEE2E2",
       labelColor:  "#EF4444",
       amountColor: "#000",
@@ -3023,12 +3023,13 @@ const renderCreditLancamentos = (card) => {
         safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : "Data desconhecida"
       ),
       byDate[date].map((e, idx) => {
-        let cfg = tipoConfig.pago_avista;
+        // Lógica dinâmica para definir o estilo com base nas propriedades da despesa do cartão
+        let cfg = tipoConfig.pago_avista; // Padrão para compras normais pendentes ou diretas no cartão
         
         if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
-          cfg = tipoConfig.receita;
+          cfg = tipoConfig.receita; // Caso haja algum estorno ou crédito positivo lançado
         } else if (e.paid && e.paidFromCard) {
-          cfg = tipoConfig.debito;
+          cfg = tipoConfig.debito; // Caso seja um lançamento que represente liquidação/baixa
         }
 
         return React.createElement("div", {
@@ -3039,6 +3040,7 @@ const renderCreditLancamentos = (card) => {
             borderBottom: "1px solid #F0F0F0"
           }
         },
+          // Ícone redondo estilizado de acordo com o padrão do extrato
           React.createElement("div", { style: {
             width: 40, height: 40, borderRadius: 20,
             background: "#F5F5F5",
@@ -3046,27 +3048,32 @@ const renderCreditLancamentos = (card) => {
             fontSize: 18, flexShrink: 0
           } }, cfg.icon),
 
+          // Conteúdo central descritivo e badges
           React.createElement("div", { style: { flex: 1, minWidth: 0 } },
             React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
             React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+              // Badge de Tipo de Lançamento
               React.createElement("span", { style: {
                 fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6,
                 background: cfg.labelBg, color: cfg.labelColor
               } }, cfg.label),
+              // Data do pagamento
               e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: "#666" } },
                 new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
               ),
+              // Origem/Forma de pagamento utilizada
               e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#32336e", fontWeight: 600 } },
                 `via ${e.paidFromCard}`
               )
             )
           ),
 
+          // Exibição do Valor com sinal analítico correspondente e indicador de concluído do extrato
           React.createElement("div", { style: { textAlign: "right" } },
             React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: cfg.amountColor } },
               `${cfg.sinal} ${fmt(e.amount || 0)}`
             ),
-            React.createElement("div", { style: { fontSize: 10, color: "#999", fontWeight: 800 } }, "concluído")
+            React.createElement("div", { style: { fontSize: 10, color: "#999", fontWeight: 800 } }, "CONCLUÍDO")
           )
         );
       })
@@ -3100,33 +3107,34 @@ if (!byDate[key]) byDate[key] = [];
 byDate[key].push(item);
 });
 
+// Configuração visual por tipo
 const tipoConfig = {
 receita: {
-  icon:       "R",
-  label:      "Entrada",
-  labelBg:    "#DCFCE7",
-  labelColor: "#059669",
-  amountColor:"#059669",
-  iconBg:     "#DCFCE7",
-  sinal:      "+"
+      icon:        "R",
+label:      "Entrada",
+labelBg:    "#DCFCE7",
+labelColor: "#059669",
+amountColor:"#059669",
+iconBg:     "#DCFCE7",
+sinal:      "+"
 },
 debito: {
-  icon:       "B",
-  label:      "Fatura baixada",
-  labelBg:    "#EFF6FF",
-  labelColor: "#2563EB",
-  amountColor:"#000",
-  iconBg:     "#EFF6FF",
-  sinal:      "-"
+      icon:        "B",
+label:      "Fatura baixada",
+labelBg:    "#EFF6FF",
+labelColor: "#2563EB",
+amountColor:"#000",
+iconBg:     "#EFF6FF",
+sinal:      "-"
 },
 pago_avista: {
-  icon:       "D",
-  label:      "Débito aberto",
-  labelBg:    "#FEE2E2",
-  labelColor: "#EF4444",
-  amountColor:"#000",
-  iconBg:     "#FEE2E2",
-  sinal:      "-"
+      icon:        "D",
+label:      "Debito aberto",
+labelBg:    "#FEE2E2",
+labelColor: "#EF4444",
+amountColor:"#000",
+iconBg:     "#FEE2E2",
+sinal:      "-"
 }
 };
 
@@ -3147,6 +3155,7 @@ padding: "12px 0",
 borderBottom: "1px solid #F0F0F0"
 }
 },
+// Ícone redondo estilizado
 React.createElement("div", { style: {
 width: 40, height: 40, borderRadius: 20,
 background: "#F5F5F5",
@@ -3154,30 +3163,36 @@ display: "flex", alignItems: "center", justifyContent: "center",
 fontSize: 18, flexShrink: 0
 } }, cfg.icon),
 
+// Conteúdo
 React.createElement("div", { style: { flex: 1, minWidth: 0 } },
 React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
 React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+// Badge de tipo
 React.createElement("span", { style: {
 fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6,
 background: cfg.labelBg, color: cfg.labelColor
 } }, cfg.label),
+// Data do pagamento
 item.paidAt && React.createElement("span", { style: { fontSize: 11, color: "#666" } },
 new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
 ),
+// Cartão de origem (só para baixa de fatura)
 item._tipo === "debito" && item.refExpenseId && React.createElement("span", { style: { fontSize: 11, color: "#32336e", fontWeight: 600 } },
 item.card ? `fatura ${item.card}` : ""
 ),
+// Cartão de origem (só para pago avista)
 item._tipo === "pago_avista" && item.card && React.createElement("span", { style: { fontSize: 11, color: "#666" } },
 `cartão ${item.card}`
 )
 )
 ),
 
+// Valor com indicador padrão do extrato
 React.createElement("div", { style: { textAlign: "right" } },
-React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: cfg.amountColor } },
-`${cfg.sinal} ${fmt(item.amount || 0)}`
-),
-React.createElement("div", { style: { fontSize: 10, color: "#999", fontWeight: 800 } }, "concluído")
+  React.createElement("div", { style: { fontWeight: 700, fontSize: 14, color: cfg.amountColor } },
+    `${cfg.sinal} ${fmt(item.amount || 0)}`
+  ),
+  React.createElement("div", { style: { fontSize: 10, color: "#999", fontWeight: 800 } }, "CONCLUÍDO")
 )
 );
 })
@@ -3197,7 +3212,7 @@ React.createElement("div", { style: { background: `linear-gradient(135deg, ${car
 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 2 } },
 React.createElement("div", null,
 React.createElement("div", { style: { fontSize: 16, fontWeight: 700, textShadow: "0 1px 2px rgba(0,0,0,0.2)" } }, card.name),
-React.createElement("div", { style: { fontSize: 12, opacity: 0.9, marginTop: 4 } }, isChecking ? "Conta corrente" : `Crédito final ${card.last4 || "0000"}`)
+React.createElement("div", { style: { fontSize: 12, opacity: 0.9, marginTop: 4 } }, isChecking ? "Conta Corrente" : `Crédito final ${card.last4 || "0000"}`)
 ),
 React.createElement("div", { style: { display: "flex", gap: 10 } },
 React.createElement("button", { onClick: () => setModal(card), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF", cursor: "pointer" } }, "✎"),
@@ -3231,10 +3246,10 @@ React.createElement("div", { style: { fontSize: 28, fontWeight: 800, color: "#00
 ),
 React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 24 } },
 React.createElement("button", { onClick: () => isChecking ? onNav("add-income") : setBaixaCard(card), style: { flex: 1, background: "#FF6200", color: "#FFF", border: "none", padding: "15px 10px", borderRadius: 16, fontWeight: 700, fontSize: 11, cursor: "pointer" } },
-isChecking ? "Novo saldo" : "Baixar despesas"
+isChecking ? "Novo Saldo" : "Baixar Despesas"
 ),
 React.createElement("button", { onClick: () => onNav({ name: "agrupar", cardName: card.name }), style: { flex: 1, background: "#F2F2F2", border: "none", color: "#333", padding: "15px 10px", borderRadius: 16, fontWeight: 700, fontSize: 11, cursor: "pointer" } },
-isChecking ? "Extrato" : "Agrupar despesas"
+isChecking ? "Extrato" : "Agrupar Despesas"
 )
 )
 )
@@ -3278,7 +3293,7 @@ cards.length === 0
 /* LANÇAMENTOS */
 currentCard && React.createElement("div", { style: { marginTop: 10, borderTop: `1px solid #F0F0F0`, padding: "20px" } },
 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
-React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: "#000" } }, "extrato"),
+React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: "#000" } }, "Lançamentos"),
 React.createElement("span", { style: { fontSize: 11, color: "#666" } }, currentCard.isCheckingAccount ? "Entradas e saídas da conta" : "Despesas do cartão")
 ),
 currentCard.isCheckingAccount
@@ -3300,7 +3315,6 @@ modal && React.createElement(CardModal, { userId: user.id, card: modal === "new"
 baixaCard && React.createElement(BaixaModal, { userId: user.id, creditCard: baixaCard, checkingCards, expenses, onClose: () => setBaixaCard(null), onSaved: handleBaixaSaved })
 );
 }
-
 function ComparisonScreen({ user, onBack, refresh }) {
 const [expenses, setExpenses] = useState([]);
 const [incomes, setIncomes] = useState([]);

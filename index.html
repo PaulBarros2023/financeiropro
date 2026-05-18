@@ -3997,15 +3997,15 @@ React.createElement("option", { value: "amount" }, "Valor")
 React.createElement("div", { style: { padding: "0 20px 20px" } },
 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
 React.createElement("div", { style: { background: "#F5FDF9", padding: "12px 10px", borderRadius: 16, border: "0.5px solid #E1FCEF" } },
-React.createElement("div", { style: { fontSize: 9, color: "#059669", fontWeight: 800, marginBottom: 4 } }, "ENTRADAS"),
+React.createElement("div", { style: { fontSize: 9, color: "#059669", fontWeight: 800, marginBottom: 4 } }, "Entrada"),
 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#059669" } }, fmt(totalEntrada))
 ),
 React.createElement("div", { style: { background: "#FFF9F5", padding: "12px 10px", borderRadius: 16, border: "0.5px solid #FFEDD5" } },
-React.createElement("div", { style: { fontSize: 9, color: "#EA580C", fontWeight: 800, marginBottom: 4 } }, "PENDENTE"),
+React.createElement("div", { style: { fontSize: 9, color: "#EA580C", fontWeight: 800, marginBottom: 4 } }, "Debito aberto"),
 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#EA580C" } }, fmt(cardPendente))
 ),
 React.createElement("div", { style: { background: "#32336e", padding: "12px 10px", borderRadius: 16 } },
-React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 800, marginBottom: 4 } }, "SALDO"),
+React.createElement("div", { style: { fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 800, marginBottom: 4 } }, "Saldo"),
 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: "#FFF" } }, fmt(cardSaldo))
 )
 )
@@ -4037,7 +4037,7 @@ const icone = isRec ? "💰" : isFilhoParcial ? "⚡" : (catIcon[item.category] 
 const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";
 
 // ── IDEIA 4: Badge de status ──────────────────────────────────────
-const badgeLabel = item.paid ? "CONCLUÍDO" : isOriginalComParcial ? "PARCIAL" : "ABERTO";
+const badgeLabel = item.paid ? "Debito baixado" : isOriginalComParcial ? "Baixado parcial" : "debito aberto";
 const badgeBg    = item.paid ? "#2563EB"   : isOriginalComParcial ? "#F59E0B" : "transparent";
 const badgeColor = item.paid ? "#FFF"      : isOriginalComParcial ? "#FFF"    : itemColor;
 const badgeBorder = (!item.paid && !isOriginalComParcial) ? `1px solid ${itemColor}` : "none";
@@ -4088,8 +4088,8 @@ badgeLabel
 /* BOTÕES DE AÇÃO */
 React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 } },
 !isRec && !item.paid && React.createElement(React.Fragment, null,
-React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "PARCIAL"),
-React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "BAIXAR")
+React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "Pg parcial"),
+React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "Baixar titulo")
 ),
 React.createElement("button", { 
 onClick: () => {

@@ -2973,48 +2973,113 @@ setResetting(false);
 };
 
 const checkingCards = cards.filter((c) => c.isCheckingAccount);
-
 /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
 const renderCreditLancamentos = (card) => {
-const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
-if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
+  const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
+  if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-const byDate = {};
-cardExp.forEach(e => {
-const key = e.date || "1970-01-01";
-if (!byDate[key]) byDate[key] = [];
-byDate[key].push(e);
-});
+  const byDate = {};
+  cardExp.forEach(e => {
+    const key = e.date || "1970-01-01";
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(e);
+  });
 
-return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
-const safeDate = date !== "1970-01-01" ? date : null;
-return React.createElement("div", { key: date, style: { marginBottom: 20 } },
-React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
-),
-byDate[date].map(e =>
-React.createElement("div", { key: e.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "0.5px solid #F0F0F0" } },
-React.createElement("div", { style: { flex: 1, minWidth: 0, paddingRight: 10 } },
-React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
-React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-React.createElement("span", { style: { fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: e.paid ? "#DCFCE7" : "#FFF3E0", color: e.paid ? "#059669" : "#EA580C" } },
-e.paid ? "PAGO" : "PENDENTE"
-),
-e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-"Pago em " + new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
-),
-e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
-"via " + e.paidFromCard
-)
-)
-),
-React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: e.paid ? "#2563EB" : C.textPri, flexShrink: 0 } },
-"- " + fmt(e.amount || 0)
-)
-)
-)
-);
-});
+  // Configuração visual idêntica à Conta Corrente mapeada por estado da despesa do cartão
+  const tipoConfig = {
+    receita: {
+      icon:        "R",
+      label:       "ENTRADA",
+      labelBg:     "#DCFCE7",
+      labelColor:  "#059669",
+      amountColor: "#059669",
+      iconBg:      "#DCFCE7",
+      sinal:       "+"
+    },
+    debito: {
+      icon:        "B",
+      label:       "BAIXA DE FATURA",
+      labelBg:     "#EFF6FF",
+      labelColor:  "#2563EB",
+      amountColor: "#2563EB",
+      iconBg:      "#EFF6FF",
+      sinal:       "-"
+    },
+    pago_avista: {
+      icon:        "D",
+      label:       "DÉBITO DIRETO",
+      labelBg:     "#FEE2E2",
+      labelColor:  "#DC2626",
+      amountColor: "#DC2626",
+      iconBg:      "#FEE2E2",
+      sinal:       "-"
+    }
+  };
+
+  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+    const safeDate = date !== "1970-01-01" ? date : null;
+    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
+        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
+      ),
+      byDate[date].map((e, idx) => {
+        // Lógica dinâmica para definir o estilo com base nas propriedades da despesa do cartão
+        let cfg = tipoConfig.pago_avista; // Padrão para compras normais pendentes ou diretas no cartão
+        
+        if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
+          cfg = tipoConfig.receita; // Caso haja algum estorno ou crédito positivo lançado
+        } else if (e.paid && e.paidFromCard) {
+          cfg = tipoConfig.debito; // Caso seja um lançamento que represente liquidação/baixa
+        }
+
+        return React.createElement("div", {
+          key: e.id + "credito" + idx,
+          style: {
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 0",
+            borderBottom: "0.5px solid #F0F0F0",
+            // Linha esquerda colorida igual ao extrato de conta corrente
+            borderLeft: `3px solid ${cfg.labelColor}`,
+            paddingLeft: 10,
+            marginLeft: -13
+          }
+        },
+          // Ícone redondo estilizado
+          React.createElement("div", { style: {
+            width: 36, height: 36, borderRadius: 10,
+            background: cfg.iconBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 16, flexShrink: 0
+          } }, cfg.icon),
+
+          // Conteúdo central descritivo e badges
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
+            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+              // Badge de Tipo de Lançamento
+              React.createElement("span", { style: {
+                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
+                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
+              } }, cfg.label),
+              // Data do pagamento
+              e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
+                new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+              ),
+              // Origem/Forma de pagamento utilizada
+              e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
+                `via ${e.paidFromCard}`
+              )
+            )
+          ),
+
+          // Exibição do Valor com sinal analítico correspondente
+          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
+            `${cfg.sinal} ${fmt(e.amount || 0)}`
+          )
+        );
+      })
+    );
+  });
 };
 
 /* ── LANÇAMENTOS CONTA CORRENTE ── */

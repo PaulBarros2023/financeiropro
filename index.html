@@ -2904,7 +2904,6 @@ function PartialPaymentModal({ user, expense, cards, onClose, onSaved }) {
   );
 }
 
-
 function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
   const [cards, setCards] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -3292,6 +3291,9 @@ function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
     baixaCard && React.createElement(BaixaModal, { userId: user.id, creditCard: baixaCard, checkingCards, expenses, onClose: () => setBaixaCard(null), onSaved: handleBaixaSaved })
   );
 }
+
+
+    
 function ComparisonScreen({ user, onBack, refresh }) {
   const [expenses, setExpenses] = useState([]);
   const [incomes, setIncomes] = useState([]);

@@ -2903,7 +2903,6 @@ fontWeight: 900, fontSize: 16, cursor: "pointer"
 )
 );
 }
-
 function CardsScreen({ user, onBack, onNav, refresh, onRefresh }) {
 const [cards, setCards] = useState([]);
 const [expenses, setExpenses] = useState([]);
@@ -2922,10 +2921,11 @@ const flagIcons = {
 
 const load = useCallback(async () => {
 setLoading(true);
+// CORREÇÃO AQUI: Alinhando o mapeamento exato da desestruturação com as promessas disparadas
 const [c, e, i] = await Promise.all([
-dbByIndex("cards", "userId", user.id),
-dbByIndex("expenses", "userId", user.id),
-dbByIndex("incomes", "userId", user.id)
+dbByIndex("cards", "userId", user.id),    // -> c (cards)
+dbByIndex("expenses", "userId", user.id), // -> e (expenses)
+dbByIndex("incomes", "userId", user.id)   // -> i (incomes)
 ]);
 setCards(c);
 setExpenses(e);
@@ -2974,111 +2974,99 @@ setResetting(false);
 const checkingCards = cards.filter((c) => c.isCheckingAccount);
 /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
 const renderCreditLancamentos = (card) => {
-  const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
-  if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
+  const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
+  if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-  const byDate = {};
-  cardExp.forEach(e => {
-    const key = e.date || "1970-01-01";
-    if (!byDate[key]) byDate[key] = [];
-    byDate[key].push(e);
-  });
+  const byDate = {};
+  cardExp.forEach(e => {
+    const key = e.date || "1970-01-01";
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(e);
+  });
 
-  // Configuração visual idêntica à Conta Corrente mapeada por estado da despesa do cartão
-  const tipoConfig = {
-    receita: {
-      icon:        "R",
-      label:       "Entrada",
-      //labelBg:     "#DCFCE7",//
-      labelColor:  "#059669",
-      amountColor: "#059669",
-      iconBg:      "#DCFCE7",
-      sinal:       "+"
-    },
-    debito: {
-      icon:        "B",
-      label:       "Fatura baixada",
-     // labelBg:     "#EFF6FF",//
-      labelColor:  "#6695fa",
-      amountColor: "#6695fa",
-      iconBg:      "#EFF6FF",
-      sinal:       "-"
-    },
-    pago_avista: {
-      icon:        "D",
-      label:       "Debito aberto",
-      //labelBg:     "#FEE2E2",//
-      labelColor:  "#ed6b6b",
-      amountColor: "#ed6b6b",
-      iconBg:      "#FEE2E2",
-      sinal:       "-"
-    }
-  };
+  const tipoConfig = {
+    receita: {
+      icon:        "R",
+      label:       "Entrada",
+      labelColor:  "#059669",
+      amountColor: "#059669",
+      iconBg:      "#DCFCE7",
+      sinal:       "+"
+    },
+    debito: {
+      icon:        "B",
+      label:       "Fatura baixada",
+      labelColor:  "#6695fa",
+      amountColor: "#6695fa",
+      iconBg:      "#EFF6FF",
+      sinal:       "-"
+    },
+    pago_avista: {
+      icon:        "D",
+      label:       "Debito aberto",
+      labelColor:  "#ed6b6b",
+      amountColor: "#ed6b6b",
+      iconBg:      "#FEE2E2",
+      sinal:       "-"
+    }
+  };
 
-  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
-    const safeDate = date !== "1970-01-01" ? date : null;
-    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
-      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
-      ),
-      byDate[date].map((e, idx) => {
-        // Lógica dinâmica para definir o estilo com base nas propriedades da despesa do cartão
-        let cfg = tipoConfig.pago_avista; // Padrão para compras normais pendentes ou diretas no cartão
-        
-        if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
-          cfg = tipoConfig.receita; // Caso haja algum estorno ou crédito positivo lançado
-        } else if (e.paid && e.paidFromCard) {
-          cfg = tipoConfig.debito; // Caso seja um lançamento que represente liquidação/baixa
-        }
+  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+    const safeDate = date !== "1970-01-01" ? date : null;
+    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
+        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
+      ),
+      byDate[date].map((e, idx) => {
+        let cfg = tipoConfig.pago_avista;
+        
+        if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
+          cfg = tipoConfig.receita;
+        } else if (e.paid && e.paidFromCard) {
+          cfg = tipoConfig.debito;
+        }
 
-        return React.createElement("div", {
-          key: e.id + "credito" + idx,
-          style: {
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "12px 0",
-            borderBottom: "0.5px solid #F0F0F0",
-            // Linha esquerda colorida igual ao extrato de conta corrente
-            borderLeft: `3px solid ${cfg.labelColor}`,
-            paddingLeft: 10,
-            marginLeft: -13
-          }
-        },
-          // Ícone redondo estilizado
-          React.createElement("div", { style: {
-            width: 36, height: 36, borderRadius: 10,
-            background: cfg.iconBg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, flexShrink: 0
-          } }, cfg.icon),
+        return React.createElement("div", {
+          key: e.id + "credito" + idx,
+          style: {
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 0",
+            borderBottom: "0.5px solid #F0F0F0",
+            borderLeft: `3px solid ${cfg.labelColor}`,
+            paddingLeft: 10,
+            marginLeft: -13
+          }
+        },
+          React.createElement("div", { style: {
+            width: 36, height: 36, borderRadius: 10,
+            background: cfg.iconBg,
+            display: "flex", alignItems: "center", justifycontent: "center",
+            fontSize: 16, flexShrink: 0
+          } }, cfg.icon),
 
-          // Conteúdo central descritivo e badges
-          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
-            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-              // Badge de Tipo de Lançamento
-              React.createElement("span", { style: {
-                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
-                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
-              } }, cfg.label),
-              // Data do pagamento
-              e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
-              ),
-              // Origem/Forma de pagamento utilizada
-              e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
-                `via ${e.paidFromCard}`
-              )
-            )
-          ),
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
+            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+              React.createElement("span", { style: {
+                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
+                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
+              } }, cfg.label),
+              e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
+                new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+              ),
+              e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
+                `via ${e.paidFromCard}`
+              )
+            )
+          ),
 
-          // Exibição do Valor com sinal analítico correspondente
-          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
-            `${cfg.sinal} ${fmt(e.amount || 0)}`
-          )
-        );
-      })
-    );
-  });
+          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
+            `${cfg.sinal} ${fmt(e.amount || 0)}`
+          )
+        );
+      })
+    );
+  });
 };
 
 /* ── LANÇAMENTOS CONTA CORRENTE ── */
@@ -3107,37 +3095,31 @@ if (!byDate[key]) byDate[key] = [];
 byDate[key].push(item);
 });
 
-// Configuração visual por tipo
 const tipoConfig = {
 receita: {
-      icon:       "+",
-      icon:       "R",
-label:      "Entrada",
-labelBg:    "#DCFCE7",
+      icon:        "R",
+label:      "Entrada",
+labelBg:    "#DCFCE7",
 labelColor: "#059669",
 amountColor:"#059669",
-iconBg:     "#DCFCE7",
-sinal:      "+"
+iconBg:     "#DCFCE7",
+sinal:      "+"
 },
 debito: {
-      icon:       "-",
-      icon:       "B",
-label:      "Fatura baixada",
-//labelBg:    "#EFF6FF",//
-labelColor:  "#6695fa",
+      icon:        "B",
+label:      "Fatura baixada",
+labelColor:  "#6695fa",
 amountColor: "#6695fa",
-iconBg:     "#EFF6FF",
-sinal:      "-"
+iconBg:     "#EFF6FF",
+sinal:      "-"
 },
 pago_avista: {
-      icon:       "P",
-      icon:       "D",
-label:      "Debito aberto",
-///labelBg:    "#FEE2E2",//
+      icon:        "D",
+label:      "Debito aberto",
 labelColor: "#ed6b6b",
 amountColor:"#ed6b6b",
-iconBg:     "#FEE2E2",
-sinal:      "-"
+iconBg:     "#FEE2E2",
+sinal:      "-"
 }
 };
 
@@ -3156,45 +3138,37 @@ style: {
 display: "flex", alignItems: "center", gap: 12,
 padding: "12px 0",
 borderBottom: "0.5px solid #F0F0F0",
-// linha esquerda colorida por tipo
 borderLeft: `3px solid ${cfg.labelColor}`,
 paddingLeft: 10,
 marginLeft: -13
 }
 },
-// Ícone
 React.createElement("div", { style: {
 width: 36, height: 36, borderRadius: 10,
 background: cfg.iconBg,
-display: "flex", alignItems: "center", justifyContent: "center",
+display: "flex", alignItems: "center", justifycontent: "center",
 fontSize: 16, flexShrink: 0
 } }, cfg.icon),
 
-// Conteúdo
 React.createElement("div", { style: { flex: 1, minWidth: 0 } },
 React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, item.desc || ""),
 React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-// Badge de tipo
 React.createElement("span", { style: {
 fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
 background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
 } }, cfg.label),
-// Data do pagamento
 item.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
 new Date(item.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
 ),
-// Cartão de origem (só para baixa de fatura)
 item._tipo === "debito" && item.refExpenseId && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
 item.card ? `fatura ${item.card}` : ""
 ),
-// Cartão de origem (só para pago avista)
 item._tipo === "pago_avista" && item.card && React.createElement("span", { style: { fontSize: 11, color: "#64748b" } },
 `cartão ${item.card}`
 )
 )
 ),
 
-// Valor
 React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
 `${cfg.sinal} ${fmt(item.amount || 0)}`
 )
@@ -3212,8 +3186,8 @@ const melhorDia = card.dueDay ? (card.dueDay - 10 <= 0 ? card.dueDay - 10 + 30 :
 const flagImg = flagIcons[card.flag] || flagIcons["Outros"];
 
 return React.createElement("div", { key: card.id, style: { minWidth: "100%", flexShrink: 0, scrollSnapAlign: "center", scrollSnapStop: "always", padding: "0 16px", boxSizing: "border-box" } },
-React.createElement("div", { style: { background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`, height: 180, borderRadius: 20, padding: 24, color: "#FFF", position: "relative", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", justifyContent: "space-between", overflow: "hidden" } },
-React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", zIndex: 2 } },
+React.createElement("div", { style: { background: `linear-gradient(135deg, ${card.color}, ${card.color}DD)`, height: 180, borderRadius: 20, padding: 24, color: "#FFF", position: "relative", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", justifycontent: "space-between", overflow: "hidden" } },
+React.createElement("div", { style: { display: "flex", justifycontent: "space-between", alignItems: "flex-start", zIndex: 2 } },
 React.createElement("div", null,
 React.createElement("div", { style: { fontSize: 16, fontWeight: 700, textShadow: "0 1px 2px rgba(0,0,0,0.2)" } }, card.name),
 React.createElement("div", { style: { fontSize: 12, opacity: 0.9, marginTop: 4 } }, isChecking ? "Conta Corrente" : `Crédito final ${card.last4 || "0000"}`)
@@ -3223,14 +3197,14 @@ React.createElement("button", { onClick: () => setModal(card), style: { backgrou
 React.createElement("button", { onClick: () => handleDeleteCard(card.id), style: { background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, padding: "6px", color: "#FFF", cursor: "pointer" } }, "🗑")
 )
 ),
-React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", alignItems: "flex-end", zIndex: 2 } },
+React.createElement("div", { style: { display: "flex", justifycontent: "flex-end", alignItems: "flex-end", zIndex: 2 } },
 React.createElement("img", { src: flagImg, style: { height: 35, width: "auto", objectFit: "contain" }, alt: card.flag })
 )
 ),
 React.createElement("div", { style: { padding: "24px 4px" } },
 !isChecking
 ? React.createElement(React.Fragment, null,
-React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+React.createElement("div", { style: { display: "flex", justifycontent: "space-between", alignItems: "flex-start" } },
 React.createElement("div", null,
 React.createElement("div", { style: { fontSize: 13, color: C.textSec } }, "Fatura aberta"),
 React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.textPri, margin: "4px 0" } }, fmt(totalPending)),
@@ -3239,7 +3213,7 @@ melhorDia && React.createElement("div", { style: { fontSize: 12, color: C.textSe
 React.createElement("button", { onClick: () => setBaixaCard(card), style: { background: "none", border: "none", color: "#32336e", fontWeight: 700, fontSize: 14, cursor: "pointer" } }, "Acessar fatura ›")
 ),
 React.createElement("div", { style: { height: 1, background: C.border, margin: "20px 0" } }),
-React.createElement("div", { style: { display: "flex", justifyContent: "space-between", color: C.textPri } },
+React.createElement("div", { style: { display: "flex", justifycontent: "space-between", color: C.textPri } },
 React.createElement("span", { style: { fontSize: 14, fontWeight: 500 } }, "Limite disponível"),
 React.createElement("span", { style: { fontSize: 14, fontWeight: 700 } }, fmt((card.limit || 0) - totalPending), " ›")
 )
@@ -3271,7 +3245,7 @@ action: React.createElement("button", { onClick: () => setModal("new"), style: {
 
 loading ? React.createElement(Loader) : React.createElement("div", null,
 
-cards.length > 1 && React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 6, marginBottom: 15 } },
+cards.length > 1 && React.createElement("div", { style: { display: "flex", justifycontent: "center", gap: 6, marginBottom: 15 } },
 cards.map((_, i) => React.createElement("div", { key: i, style: { width: currentIndex === i ? 16 : 6, height: 6, borderRadius: 3, background: currentIndex === i ? "#FF6200" : C.border, transition: "width 0.3s" } }))
 ),
 
@@ -3296,7 +3270,7 @@ cards.length === 0
 
 /* LANÇAMENTOS */
 currentCard && React.createElement("div", { style: { marginTop: 10, borderTop: `8px solid ${C.bg}`, padding: "20px" } },
-React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } },
+React.createElement("div", { style: { display: "flex", justifycontent: "space-between", alignItems: "center", marginBottom: 20 } },
 React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: C.textPri } }, "Lançamentos"),
 React.createElement("span", { style: { fontSize: 12, color: C.textMut } }, currentCard.isCheckingAccount ? "Entradas e saídas da conta" : "Despesas do cartão")
 ),

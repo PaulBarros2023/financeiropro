@@ -4034,11 +4034,22 @@ const icone = isRec ? "P" : isFilhoParcial ? "⚡" : (catIcon[item.category] || 
 // Sufixo no cartão
 const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";
 
-// ── IDEIA 4: Badge de status ──────────────────────────────────────
-const badgeLabel = item.paid ? "Debito baixado" : isOriginalComParcial ? "Baixado parcial" : "Receita";
-const badgeBg    = item.paid ? "#2563EB"   : isOriginalComParcial ? "#F59E0B" : "transparent";
-const badgeColor = item.paid ? "#FFF"      : isOriginalComParcial ? "#FFF"    : itemColor;
-const badgeBorder = (!item.paid && !isOriginalComParcial) ? `1px solid ${itemColor}` : "none";
+// ── IDEIA 4: Badge de status (CORRIGIDA) ───────────────────────────
+const badgeLabel = isRec 
+  ? "Receita recebida" 
+  : (item.paid ? "Debito baixado" : isOriginalComParcial ? "Baixado parcial" : "Debito Criado");
+
+const badgeBg = isRec
+  ? "#DCFCE7" // Fundo verde claro para receitas
+  : (item.paid ? "#2563EB" : isOriginalComParcial ? "#F59E0B" : "transparent");
+
+const badgeColor = isRec
+  ? "#059669" // Texto verde para receitas
+  : (item.paid ? "#FFF" : isOriginalComParcial ? "#FFF" : itemColor);
+
+const badgeBorder = (!isRec && !item.paid && !isOriginalComParcial) 
+  ? `1px solid ${itemColor}` 
+  : "none";
 
 // ── IDEIA 1: Indentação e linha de conexão para filha parcial ─────
 const filhaStyle = isFilhoParcial ? {

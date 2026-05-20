@@ -4035,7 +4035,7 @@ const icone = isRec ? "P" : isFilhoParcial ? "⚡" : (catIcon[item.category] || 
 const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";
 
 // ── IDEIA 4: Badge de status ──────────────────────────────────────
-const badgeLabel = item.paid ? "Debito baixado" : isOriginalComParcial ? "Baixado parcial" : "debito aberto";
+const badgeLabel = item.paid ? "Debito baixado" : isOriginalComParcial ? "Baixado parcial" : "Receita";
 const badgeBg    = item.paid ? "#2563EB"   : isOriginalComParcial ? "#F59E0B" : "transparent";
 const badgeColor = item.paid ? "#FFF"      : isOriginalComParcial ? "#FFF"    : itemColor;
 const badgeBorder = (!item.paid && !isOriginalComParcial) ? `1px solid ${itemColor}` : "none";

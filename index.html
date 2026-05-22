@@ -4029,7 +4029,7 @@ const totalParcialPago = filhosDestItem.reduce((sum, f) => sum + f.amount, 0);
 const restante = isOriginalComParcial ? item.amount - totalParcialPago : 0;
 
 // ── IDEIA 3: Ícone diferente para filha parcial ───────────────────
-const icone = isRec ? "P" : isFilhoParcial ? "⚡" : (catIcon[item.category] || "P");
+const icone = isRec ? "R" : isFilhoParcial ? "⚡" : (catIcon[item.category] || "P");
 
 // Sufixo no cartão
 const cardSuffix = isOriginalComParcial ? "/parcial" : isFilhoParcial ? "/pago parcial" : "";

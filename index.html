@@ -3863,9 +3863,11 @@ const [selTipo, setSelTipo] = useState("despesa");
 const [sortBy, setSortBy] = useState("date");
 const [baixaExp, setBaixaExp] = useState(null);
 const [baixaParcialExp, setBaixaParcialExp] = useState(null);
-// ── Clonar despesas para o mês atual (valor zerado) ──────────────────────────
-const [cloneOpen, setCloneOpen] = useState(false);
+// ── Clonar despesas para o mês atual (valor zerado) — seleção direto na lista do extrato ──
+const [cloneMode, setCloneMode] = useState(false);
 const [cloneSelectedIds, setCloneSelectedIds] = useState(new Set());
+const [quickEditExp, setQuickEditExp] = useState(null);
+const [quickEditSaving, setQuickEditSaving] = useState(false);
 
 const load = useCallback(async () => {
 setLoading(true);
@@ -3925,11 +3927,41 @@ const newId = await dbAdd("expenses", clone);
 await logAction(user.id, "expense", "clone", { fromId: original.id, newId });
 }
 setCloneSelectedIds(new Set());
-setCloneOpen(false);
+setCloneMode(false);
 load();
 if (onRefresh) onRefresh();
 } catch (err) {
 alert("Erro ao clonar despesa(s): " + err.message);
+}
+};
+
+// ── Editar rápido (apenas data e valor) — útil para completar despesas clonadas ──
+const handleQuickEditSave = async () => {
+if (!quickEditExp) return;
+const amountNum = parseFloat(String(quickEditExp.amount).replace(",", "."));
+if (isNaN(amountNum) || amountNum < 0) { alert("Valor inválido."); return; }
+if (!quickEditExp.date) { alert("Data inválida."); return; }
+setQuickEditSaving(true);
+try {
+const original = expenses.find(e => e.id === quickEditExp.id);
+if (!original) throw new Error("Despesa não encontrada.");
+const d = new Date(quickEditExp.date + "T12:00:00");
+const updated = {
+...original,
+amount: amountNum,
+date: quickEditExp.date,
+month: d.getMonth() + 1,
+year: d.getFullYear()
+};
+await dbPut("expenses", updated);
+await logAction(user.id, "expense", "quick-edit", { id: original.id, amount: amountNum, date: quickEditExp.date });
+setQuickEditExp(null);
+load();
+if (onRefresh) onRefresh();
+} catch (err) {
+alert("Erro ao salvar: " + err.message);
+} finally {
+setQuickEditSaving(false);
 }
 };
 
@@ -4042,47 +4074,24 @@ React.createElement("option", { value: "amount" }, "Valor")
 )
 ),
 
-/* CLONAR DESPESAS (do mês filtrado) PARA O MÊS ATUAL */
-React.createElement("div", { style: { padding: "0 20px 15px" } },
-React.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
+/* SELECIONAR PARA CLONAR (usa a própria lista do extrato abaixo) */
+React.createElement("div", { style: { padding: "0 20px 10px", display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" } },
+cloneMode && cloneSelectedIds.size > 0 && React.createElement("button", {
+onClick: handleCloneExpenses,
+style: { padding: "0 14px", height: 38, borderRadius: 10, border: "none", background: "#32336e", color: "#FFF", fontWeight: 700, fontSize: 12, cursor: "pointer" }
+}, `Clonar ${cloneSelectedIds.size}`),
 React.createElement("button", {
-onClick: () => setCloneOpen(!cloneOpen),
-title: "Clonar despesas para o mês atual",
+onClick: () => { setCloneMode(!cloneMode); setCloneSelectedIds(new Set()); },
+title: "Selecionar despesas para clonar",
 style: {
 width: 38, height: 38, borderRadius: 10,
-border: cloneOpen ? "none" : "1px solid #E0E0E0",
-background: cloneOpen ? "#32336e" : "#FFF",
-color: cloneOpen ? "#FFF" : "#32336e",
+border: cloneMode ? "none" : "1px solid #E0E0E0",
+background: cloneMode ? "#32336e" : "#FFF",
+color: cloneMode ? "#FFF" : "#32336e",
 fontSize: 16, cursor: "pointer",
 display: "flex", alignItems: "center", justifyContent: "center"
 }
 }, "📋")
-),
-cloneOpen && React.createElement("div", { style: { marginTop: 10, background: "#F9F9F9", border: "1px solid #E0E0E0", borderRadius: 12, padding: 10 } },
-React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: "#999", marginBottom: 8 } }, "Despesas do período filtrado — selecione para clonar (valor zerado):"),
-(() => {
-const cloneCandidates = expenses
-.filter(e => !e.isCheckingDebit && (selPeriod === "tudo" || (e.month === selPeriod.m && e.year === selPeriod.y)))
-.sort((a, b) => a.desc.localeCompare(b.desc));
-if (cloneCandidates.length === 0) {
-return React.createElement("div", { style: { fontSize: 12, color: "#999", padding: "10px 0", textAlign: "center" } }, "Nenhuma despesa neste período");
-}
-return cloneCandidates.map(e =>
-React.createElement("div", {
-key: e.id,
-onClick: () => toggleCloneSelect(e.id),
-style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", borderBottom: "1px solid #EEE", cursor: "pointer" }
-},
-React.createElement("input", { type: "checkbox", checked: cloneSelectedIds.has(e.id), readOnly: true, style: { width: 16, height: 16 } }),
-React.createElement("div", { style: { flex: 1, fontSize: 12, color: "#333" } }, `${e.desc} • ${MONTHS[e.month - 1]}/${e.year} • ${fmt(e.amount)}`)
-)
-);
-})(),
-cloneSelectedIds.size > 0 && React.createElement("button", {
-onClick: handleCloneExpenses,
-style: { marginTop: 10, width: "100%", padding: "10px", borderRadius: 10, border: "none", background: "#32336e", color: "#FFF", fontWeight: 700, fontSize: 12, cursor: "pointer" }
-}, `Clonar ${cloneSelectedIds.size} selecionada(s)`)
-)
 ),
 
 /* CARDS DE RESUMO */
@@ -4163,6 +4172,13 @@ isFilhoParcial && React.createElement("div", { style: { position: "absolute", le
 
 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
 React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center", flex: 1 } },
+cloneMode && !isRec && React.createElement("input", {
+type: "checkbox",
+checked: cloneSelectedIds.has(item.id),
+onClick: () => toggleCloneSelect(item.id),
+readOnly: true,
+style: { width: 18, height: 18, cursor: "pointer", flexShrink: 0 }
+}),
 React.createElement("div", { style: { width: 40, height: 40, borderRadius: 20, background: isFilhoParcial ? "#EFF6FF" : "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: itemColor } }, icone),
 React.createElement("div", { style: { flex: 1 } },
 React.createElement("div", { style: { fontWeight: 600, color: "#000", fontSize: 14 } }, item.desc),
@@ -4191,6 +4207,11 @@ React.createElement("div", { style: { display: "flex", justifyContent: "flex-end
 React.createElement("button", { onClick: () => setBaixaParcialExp(item), style: { border: "none", background: "none", color: "#32336e", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "Pg parcial"),
 React.createElement("button", { onClick: () => setBaixaExp(item), style: { border: "none", background: "none", color: "#FF6200", fontSize: 11, fontWeight: 800, cursor: "pointer" } }, "Baixar titulo")
 ),
+!isRec && React.createElement("button", {
+onClick: () => setQuickEditExp({ id: item.id, date: item.date, amount: String(item.amount) }),
+title: "Editar data e valor",
+style: { border: "none", background: "none", color: "#32336e", fontSize: 13, fontWeight: 800, cursor: "pointer" }
+}, "✏️"),
 React.createElement("button", { 
 onClick: () => {
 const screenData = { id: item.id, name: isRec ? "edit-income" : "edit-expense" };
@@ -4207,7 +4228,47 @@ React.createElement("button", { onClick: () => isRec ? handleDeleteInc(item.id) 
 ),
 
 baixaExp && React.createElement(BaixaTituloModal, { userId: user.id, expense: baixaExp, allExpenses: expenses, cards, onClose: () => setBaixaExp(null), onSaved: () => { setBaixaExp(null); load(); } }),
-baixaParcialExp && React.createElement(PartialPaymentModal, { user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), onClose: () => setBaixaParcialExp(null), onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } })
+baixaParcialExp && React.createElement(PartialPaymentModal, { user: user, expense: baixaParcialExp, cards: cards.filter(c => c.isCheckingAccount), onClose: () => setBaixaParcialExp(null), onSaved: () => { setBaixaParcialExp(null); load(); if(onRefresh) onRefresh(); } }),
+
+/* ── Editar rápido (apenas data e valor) ── */
+quickEditExp && React.createElement("div", {
+style: { position: "fixed", inset: 0, background: "#000000CC", zIndex: 1200, display: "flex", alignItems: "flex-end" },
+onClick: () => !quickEditSaving && setQuickEditExp(null)
+},
+React.createElement("div", {
+onClick: (e) => e.stopPropagation(),
+style: { background: "#FFF", borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 430, margin: "0 auto", padding: "24px 20px", paddingBottom: "max(env(safe-area-inset-bottom),24px)", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 -8px 40px rgba(0,0,0,0.15)" }
+},
+React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+React.createElement("span", { style: { fontSize: 18, fontWeight: 800, color: "#32336e" } }, "Editar data e valor"),
+React.createElement("button", { onClick: () => setQuickEditExp(null), disabled: quickEditSaving, style: { background: "none", border: "none", color: "#999", fontSize: 22, cursor: "pointer" } }, "✕")
+),
+React.createElement("div", null,
+React.createElement("label", { style: { fontSize: 11, fontWeight: 700, color: "#32336e", textTransform: "uppercase" } }, "Data"),
+React.createElement("input", {
+type: "date",
+value: quickEditExp.date,
+onChange: (ev) => setQuickEditExp({ ...quickEditExp, date: ev.target.value }),
+style: { width: "100%", padding: "12px 0", border: "none", borderBottom: "1.5px solid #DCDCDC", fontSize: 16, color: "#32336e", background: "transparent", outline: "none", boxSizing: "border-box" }
+})
+),
+React.createElement("div", null,
+React.createElement("label", { style: { fontSize: 11, fontWeight: 700, color: "#32336e", textTransform: "uppercase" } }, "Valor (R$)"),
+React.createElement("input", {
+type: "number",
+value: quickEditExp.amount,
+onChange: (ev) => setQuickEditExp({ ...quickEditExp, amount: ev.target.value }),
+placeholder: "0,00",
+style: { width: "100%", padding: "12px 0", border: "none", borderBottom: "1.5px solid #DCDCDC", fontSize: 22, fontWeight: 800, color: "#32336e", background: "transparent", outline: "none", boxSizing: "border-box" }
+})
+),
+React.createElement("button", {
+onClick: handleQuickEditSave,
+disabled: quickEditSaving,
+style: { width: "100%", padding: "16px", borderRadius: "25px", border: "none", background: quickEditSaving ? "#CCC" : "#32336e", color: "#FFF", fontSize: 16, fontWeight: 700, cursor: quickEditSaving ? "not-allowed" : "pointer" }
+}, quickEditSaving ? "Salvando..." : "Salvar")
+)
+)
 );
 }
 

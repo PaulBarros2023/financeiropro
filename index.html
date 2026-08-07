@@ -2987,111 +2987,111 @@ setResetting(false);
 const checkingCards = cards.filter((c) => c.isCheckingAccount);
 /* ── LANÇAMENTOS CARTÃO DE CRÉDITO ── */
 const renderCreditLancamentos = (card) => {
-  const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
-  if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
+  const cardExp = expenses.filter(e => e && e.card === card.name && !e.isCheckingDebit);
+  if (cardExp.length === 0) return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: C.textMut, fontSize: 13 } }, "Nenhum lançamento");
 
-  const byDate = {};
-  cardExp.forEach(e => {
-    const key = e.date || "1970-01-01";
-    if (!byDate[key]) byDate[key] = [];
-    byDate[key].push(e);
-  });
+  const byDate = {};
+  cardExp.forEach(e => {
+    const key = e.date || "1970-01-01";
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(e);
+  });
 
-  // Configuração visual idêntica à Conta Corrente mapeada por estado da despesa do cartão
-  const tipoConfig = {
-    receita: {
-      icon:        "R",
-      label:       "Entrada",
-      //labelBg:     "#DCFCE7",//
-      labelColor:  "#059669",
-      amountColor: "#059669",
-      iconBg:      "#DCFCE7",
-      sinal:       "+"
-    },
-    debito: {
-      icon:        "B",
-      label:       "Fatura baixada",
-     // labelBg:     "#EFF6FF",//
-      labelColor:  "#6695fa",
-      amountColor: "#6695fa",
-      iconBg:      "#EFF6FF",
-      sinal:       "-"
-    },
-    pago_avista: {
-      icon:        "D",
-      label:       "Debito aberto",
-      //labelBg:     "#FEE2E2",//
-      labelColor:  "#ed6b6b",
-      amountColor: "#ed6b6b",
-      iconBg:      "#FEE2E2",
-      sinal:       "-"
-    }
-  };
+  // Configuração visual idêntica à Conta Corrente mapeada por estado da despesa do cartão
+  const tipoConfig = {
+    receita: {
+      icon:        "R",
+      label:       "Entrada",
+      //labelBg:     "#DCFCE7",//
+      labelColor:  "#059669",
+      amountColor: "#059669",
+      iconBg:      "#DCFCE7",
+      sinal:       "+"
+    },
+    debito: {
+      icon:        "B",
+      label:       "Fatura baixada",
+     // labelBg:     "#EFF6FF",//
+      labelColor:  "#6695fa",
+      amountColor: "#6695fa",
+      iconBg:      "#EFF6FF",
+      sinal:       "-"
+    },
+    pago_avista: {
+      icon:        "D",
+      label:       "Debito aberto",
+      //labelBg:     "#FEE2E2",//
+      labelColor:  "#ed6b6b",
+      amountColor: "#ed6b6b",
+      iconBg:      "#FEE2E2",
+      sinal:       "-"
+    }
+  };
 
-  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
-    const safeDate = date !== "1970-01-01" ? date : null;
-    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
-      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
-        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
-      ),
-      byDate[date].map((e, idx) => {
-        // Lógica dinâmica para definir o estilo com base nas propriedades da despesa do cartão
-        let cfg = tipoConfig.pago_avista; // Padrão para compras normais pendentes ou diretas no cartão
-        
-        if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
-          cfg = tipoConfig.receita; // Caso haja algum estorno ou crédito positivo lançado
-        } else if (e.paid && e.paidFromCard) {
-          cfg = tipoConfig.debito; // Caso seja um lançamento que represente liquidação/baixa
-        }
+  return Object.keys(byDate).sort((a, b) => b.localeCompare(a)).map(date => {
+    const safeDate = date !== "1970-01-01" ? date : null;
+    return React.createElement("div", { key: date, style: { marginBottom: 20 } },
+      React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.textSec, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 } },
+        safeDate ? new Date(safeDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) : "Data desconhecida"
+      ),
+      byDate[date].map((e, idx) => {
+        // Lógica dinâmica para definir o estilo com base nas propriedades da despesa do cartão
+        let cfg = tipoConfig.pago_avista; // Padrão para compras normais pendentes ou diretas no cartão
+        
+        if (e.amount > 0 && e.isCheckingDebit === false && e._isIncome) {
+          cfg = tipoConfig.receita; // Caso haja algum estorno ou crédito positivo lançado
+        } else if (e.paid && e.paidFromCard) {
+          cfg = tipoConfig.debito; // Caso seja um lançamento que represente liquidação/baixa
+        }
 
-        return React.createElement("div", {
-          key: e.id + "credito" + idx,
-          style: {
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "12px 0",
-            borderBottom: "0.5px solid #F0F0F0",
-            // Linha esquerda colorida igual ao extrato de conta corrente
-            borderLeft: `3px solid ${cfg.labelColor}`,
-            paddingLeft: 10,
-            marginLeft: -13
-          }
-        },
-          // Ícone redondo estilizado
-          React.createElement("div", { style: {
-            width: 36, height: 36, borderRadius: 10,
-            background: cfg.iconBg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, flexShrink: 0
-          } }, cfg.icon),
+        return React.createElement("div", {
+          key: e.id + "credito" + idx,
+          style: {
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 0",
+            borderBottom: "0.5px solid #F0F0F0",
+            // Linha esquerda colorida igual ao extrato de conta corrente
+            borderLeft: `3px solid ${cfg.labelColor}`,
+            paddingLeft: 10,
+            marginLeft: -13
+          }
+        },
+          // Ícone redondo estilizado
+          React.createElement("div", { style: {
+            width: 36, height: 36, borderRadius: 10,
+            background: cfg.iconBg,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 16, flexShrink: 0
+          } }, cfg.icon),
 
-          // Conteúdo central descritivo e badges
-          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
-            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
-              // Badge de Tipo de Lançamento
-              React.createElement("span", { style: {
-                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
-                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
-              } }, cfg.label),
-              // Data do pagamento
-              e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
-              ),
-              // Origem/Forma de pagamento utilizada
-              e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
-                `via ${e.paidFromCard}`
-              )
-            )
-          ),
+          // Conteúdo central descritivo e badges
+          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+            React.createElement("div", { style: { fontWeight: 600, color: C.textPri, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.desc || ""),
+            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" } },
+              // Badge de Tipo de Lançamento
+              React.createElement("span", { style: {
+                fontSize: 9, fontWeight: 900, padding: "2px 7px", borderRadius: 6,
+                background: cfg.labelBg, color: cfg.labelColor, letterSpacing: 0.3
+              } }, cfg.label),
+              // Data do pagamento
+              e.paid && e.paidAt && React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
+                new Date(e.paidAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
+              ),
+              // Origem/Forma de pagamento utilizada
+              e.paid && e.paidFromCard && React.createElement("span", { style: { fontSize: 11, color: "#2563EB", fontWeight: 600 } },
+                `via ${e.paidFromCard}`
+              )
+            )
+          ),
 
-          // Exibição do Valor com sinal analítico correspondente
-          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
-            `${cfg.sinal} ${fmt(e.amount || 0)}`
-          )
-        );
-      })
-    );
-  });
+          // Exibição do Valor com sinal analítico correspondente
+          React.createElement("div", { style: { fontWeight: 800, fontSize: 14, color: cfg.amountColor, flexShrink: 0 } },
+            `${cfg.sinal} ${fmt(e.amount || 0)}`
+          )
+        );
+      })
+    );
+  });
 };
 
 /* ── LANÇAMENTOS CONTA CORRENTE ── */
@@ -3123,34 +3123,34 @@ byDate[key].push(item);
 // Configuração visual por tipo
 const tipoConfig = {
 receita: {
-      icon:       "+",
-      icon:       "R",
-label:      "Entrada",
-labelBg:    "#DCFCE7",
+      icon:       "+",
+      icon:       "R",
+label:      "Entrada",
+labelBg:    "#DCFCE7",
 labelColor: "#059669",
 amountColor:"#059669",
-iconBg:     "#DCFCE7",
-sinal:      "+"
+iconBg:     "#DCFCE7",
+sinal:      "+"
 },
 debito: {
-      icon:       "-",
-      icon:       "B",
-label:      "Fatura baixada",
-//labelBg:    "#EFF6FF",//
-labelColor:  "#6695fa",
+      icon:       "-",
+      icon:       "B",
+label:      "Fatura baixada",
+//labelBg:    "#EFF6FF",//
+labelColor:  "#6695fa",
 amountColor: "#6695fa",
-iconBg:     "#EFF6FF",
-sinal:      "-"
+iconBg:     "#EFF6FF",
+sinal:      "-"
 },
 pago_avista: {
-      icon:       "P",
-      icon:       "D",
-label:      "Debito aberto",
-///labelBg:    "#FEE2E2",//
+      icon:       "P",
+      icon:       "D",
+label:      "Debito aberto",
+///labelBg:    "#FEE2E2",//
 labelColor: "#ed6b6b",
 amountColor:"#ed6b6b",
-iconBg:     "#FEE2E2",
-sinal:      "-"
+iconBg:     "#FEE2E2",
+sinal:      "-"
 }
 };
 
@@ -3863,8 +3863,9 @@ const [selTipo, setSelTipo] = useState("despesa");
 const [sortBy, setSortBy] = useState("date");
 const [baixaExp, setBaixaExp] = useState(null);
 const [baixaParcialExp, setBaixaParcialExp] = useState(null);
-// ── Clonar despesa para o mês atual (valor zerado) ──────────────────────────
-const [cloneSelectedId, setCloneSelectedId] = useState("");
+// ── Clonar despesas para o mês atual (valor zerado) ──────────────────────────
+const [cloneOpen, setCloneOpen] = useState(false);
+const [cloneSelectedIds, setCloneSelectedIds] = useState(new Set());
 
 const load = useCallback(async () => {
 setLoading(true);
@@ -3897,29 +3898,39 @@ load();
 if (onRefresh) onRefresh();
 };
 
-const handleCloneExpense = async () => {
-if (!cloneSelectedId) return;
-const original = expenses.find(e => e.id === cloneSelectedId);
-if (!original) return;
+const toggleCloneSelect = (id) => {
+const next = new Set(cloneSelectedIds);
+next.has(id) ? next.delete(id) : next.add(id);
+setCloneSelectedIds(next);
+};
 
+const handleCloneExpenses = async () => {
+if (cloneSelectedIds.size === 0) return;
 const today = new Date();
+try {
+for (const id of cloneSelectedIds) {
+const original = expenses.find(e => e.id === id);
+if (!original) continue;
 const clone = {
 ...original,
-id: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
 amount: 0,
 month: today.getMonth() + 1,
 year: today.getFullYear(),
 paid: false
 };
+delete clone.id; // deixa o IndexedDB gerar a chave (autoIncrement)
 delete clone.partialPaymentRef;
 delete clone.paidFromCard;
-
-await dbAdd("expenses", clone);
-await logAction(user.id, "expense", "clone", { fromId: original.id, newId: clone.id });
-
-setCloneSelectedId("");
+const newId = await dbAdd("expenses", clone);
+await logAction(user.id, "expense", "clone", { fromId: original.id, newId });
+}
+setCloneSelectedIds(new Set());
+setCloneOpen(false);
 load();
 if (onRefresh) onRefresh();
+} catch (err) {
+alert("Erro ao clonar despesa(s): " + err.message);
+}
 };
 
 const monthFilterItems = useMemo(() => {
@@ -4031,35 +4042,47 @@ React.createElement("option", { value: "amount" }, "Valor")
 )
 ),
 
-/* CLONAR DESPESA PARA O MÊS ATUAL */
-React.createElement("div", { style: { padding: "0 20px 15px", display: "flex", gap: 8, alignItems: "center" } },
-React.createElement("select", {
-value: cloneSelectedId,
-onChange: (e) => setCloneSelectedId(e.target.value),
-style: { flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid #E0E0E0", fontSize: 12, color: "#333" }
-},
-React.createElement("option", { value: "" }, "Selecione uma despesa para clonar..."),
-expenses
-.filter(e => !e.isCheckingDebit)
-.sort((a, b) => {
-if (a.year !== b.year) return b.year - a.year;
-if (a.month !== b.month) return b.month - a.month;
-return a.desc.localeCompare(b.desc);
-})
-.map(e => React.createElement("option", { key: e.id, value: e.id },
-`${e.desc} • ${MONTHS[e.month - 1]}/${e.year} • ${fmt(e.amount)}`
-))
-),
+/* CLONAR DESPESAS (do mês filtrado) PARA O MÊS ATUAL */
+React.createElement("div", { style: { padding: "0 20px 15px" } },
+React.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } },
 React.createElement("button", {
-onClick: handleCloneExpense,
-disabled: !cloneSelectedId,
+onClick: () => setCloneOpen(!cloneOpen),
+title: "Clonar despesas para o mês atual",
 style: {
-padding: "10px 16px", borderRadius: 10, border: "none",
-background: cloneSelectedId ? "#32336e" : "#CCC",
-color: "#FFF", fontWeight: 700, fontSize: 12,
-cursor: cloneSelectedId ? "pointer" : "not-allowed"
+width: 38, height: 38, borderRadius: 10,
+border: cloneOpen ? "none" : "1px solid #E0E0E0",
+background: cloneOpen ? "#32336e" : "#FFF",
+color: cloneOpen ? "#FFF" : "#32336e",
+fontSize: 16, cursor: "pointer",
+display: "flex", alignItems: "center", justifyContent: "center"
 }
-}, "Clonar p/ mês atual")
+}, "📋")
+),
+cloneOpen && React.createElement("div", { style: { marginTop: 10, background: "#F9F9F9", border: "1px solid #E0E0E0", borderRadius: 12, padding: 10 } },
+React.createElement("div", { style: { fontSize: 11, fontWeight: 800, color: "#999", marginBottom: 8 } }, "Despesas do período filtrado — selecione para clonar (valor zerado):"),
+(() => {
+const cloneCandidates = expenses
+.filter(e => !e.isCheckingDebit && (selPeriod === "tudo" || (e.month === selPeriod.m && e.year === selPeriod.y)))
+.sort((a, b) => a.desc.localeCompare(b.desc));
+if (cloneCandidates.length === 0) {
+return React.createElement("div", { style: { fontSize: 12, color: "#999", padding: "10px 0", textAlign: "center" } }, "Nenhuma despesa neste período");
+}
+return cloneCandidates.map(e =>
+React.createElement("div", {
+key: e.id,
+onClick: () => toggleCloneSelect(e.id),
+style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", borderBottom: "1px solid #EEE", cursor: "pointer" }
+},
+React.createElement("input", { type: "checkbox", checked: cloneSelectedIds.has(e.id), readOnly: true, style: { width: 16, height: 16 } }),
+React.createElement("div", { style: { flex: 1, fontSize: 12, color: "#333" } }, `${e.desc} • ${MONTHS[e.month - 1]}/${e.year} • ${fmt(e.amount)}`)
+)
+);
+})(),
+cloneSelectedIds.size > 0 && React.createElement("button", {
+onClick: handleCloneExpenses,
+style: { marginTop: 10, width: "100%", padding: "10px", borderRadius: 10, border: "none", background: "#32336e", color: "#FFF", fontWeight: 700, fontSize: 12, cursor: "pointer" }
+}, `Clonar ${cloneSelectedIds.size} selecionada(s)`)
+)
 ),
 
 /* CARDS DE RESUMO */
